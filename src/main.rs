@@ -10,6 +10,7 @@ use crate::d_io::Output;
 use crossterm::{event, terminal};
 use editor::EditorContents;
 use std::cmp;
+use crate::editor::Editor;
 
 const VERSION: &str = "0.0.1";
 const TAB_STOP: usize = 8;
@@ -86,7 +87,7 @@ macro_rules! prompt {
 fn main() -> crossterm::Result<()> {
     let _clean_up = CleanUp;
     terminal::enable_raw_mode()?;
-    let mut editor = editor::Editor::new();
+    let mut editor = Editor::new();
     while editor.run()? {}
     Ok(())
 }

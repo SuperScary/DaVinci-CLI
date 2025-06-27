@@ -50,9 +50,11 @@ impl CursorController {
         if self.cursor_y >= self.row_offset + self.screen_rows {
             self.row_offset = self.cursor_y - self.screen_rows + 1;
         }
+        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
+        let content_width = self.screen_columns.saturating_sub(gutter_width);
         self.column_offset = cmp::min(self.column_offset, self.render_x);
-        if self.render_x >= self.column_offset + self.screen_columns {
-            self.column_offset = self.render_x - self.screen_columns + 1;
+        if self.render_x >= self.column_offset + content_width {
+            self.column_offset = self.render_x - content_width + 1;
         }
     }
 

@@ -4,7 +4,7 @@ use crate::event::KeyModifiers;
 use crate::highlighting::{CHighlight, HighlightType, JavaHighlight, RustHighlight, SyntaxHighlight};
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
-use crate::{config, prompt, VERSION};
+use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, event, execute, queue, style, terminal};
@@ -291,31 +291,42 @@ impl Output {
     fn draw_rows(&mut self) {
         let screen_rows = self.win_size.1;
         let screen_columns = self.win_size.0;
+        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
+        let content_width = screen_columns.saturating_sub(gutter_width);
+        
         for i in 0..screen_rows {
             let file_row = i + self.cursor_controller.row_offset;
             if file_row >= self.editor_rows.number_of_rows() {
                 if self.editor_rows.number_of_rows() == 0 && i == screen_rows / 3 {
                     let mut welcome = format!("DaVinci CLI --- Version {}", VERSION);
-                    if welcome.len() > screen_columns {
-                        welcome.truncate(screen_columns)
+                    if welcome.len() > content_width {
+                        welcome.truncate(content_width)
                     }
-                    let mut padding = (screen_columns - welcome.len()) / 2;
+                    let mut padding = (content_width - welcome.len()) / 2;
+                    // Add gutter padding
+                    (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
                     if padding != 0 {
-                        self.editor_contents.push(config::PREFIX_CHAR);
                         padding -= 1
                     }
                     (0..padding).for_each(|_| self.editor_contents.push(' '));
                     self.editor_contents.push_str(&welcome);
                 } else {
-                    self.editor_contents.push(config::PREFIX_CHAR);
+                    // Display empty gutter for empty lines
+                    (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
                 }
             } else {
                 let row = self.editor_rows.get_editor_row(file_row);
                 let render = &row.render;
                 let column_offset = self.cursor_controller.column_offset;
-                let len = cmp::min(render.len().saturating_sub(column_offset), screen_columns);
+                let len = cmp::min(render.len().saturating_sub(column_offset), content_width);
                 let start = if len == 0 { 0 } else { column_offset };
                 let render = render.chars().skip(start).take(len).collect::<String>();
+                
+                // Draw line number in gutter
+                let line_num = format!("{:>5} ", file_row + 1);
+                self.editor_contents.push_str(&line_num);
+                
+                // Draw the actual content with syntax highlighting
                 self.syntax_highlight
                     .as_ref()
                     .map(|syntax_highlight| {
@@ -347,7 +358,8 @@ impl Output {
         self.draw_rows();
         self.draw_status_bar();
         self.draw_message_bar();
-        let cursor_x = self.cursor_controller.render_x - self.cursor_controller.column_offset;
+        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
+        let cursor_x = self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
         let cursor_y = self.cursor_controller.cursor_y - self.cursor_controller.row_offset;
         queue!(
             self.editor_contents,
