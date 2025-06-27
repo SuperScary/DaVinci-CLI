@@ -1,0 +1,1 @@
+pub(crate) const PREFIX_CHAR: char = '#';
