@@ -323,11 +323,16 @@ impl Editor {
             KeyEvent {
                 code: code @ (KeyCode::Char(..) | KeyCode::Tab),
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
-            } => self.output.insert_char(match code {
-                KeyCode::Tab => '\t',
-                KeyCode::Char(ch) => ch,
+            } => match code {
+                KeyCode::Tab => {
+                    // Insert 4 spaces for soft indentation
+                    for _ in 0..4 {
+                        self.output.insert_char(' ');
+                    }
+                }
+                KeyCode::Char(ch) => self.output.insert_char(ch),
                 _ => unreachable!(),
-            }),
+            },
             _ => {}
         }
         self.quit_times = QUIT_TIMES;

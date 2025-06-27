@@ -199,21 +199,55 @@ impl Output {
         self.dirty += 1;
     }
 
+    fn get_indentation_level(&self, row_content: &str) -> usize {
+        let mut indent_level = 0;
+        for ch in row_content.chars() {
+            if ch == ' ' {
+                indent_level += 1;
+            } else {
+                break;
+            }
+        }
+        indent_level
+    }
+
     pub(crate) fn insert_newline(&mut self) {
         if self.cursor_controller.cursor_x == 0 {
+            // If cursor is at the beginning, check previous line for indentation
+            let indent_level = if self.cursor_controller.cursor_y > 0 {
+                let previous_row = self.editor_rows.get_row(self.cursor_controller.cursor_y - 1);
+                self.get_indentation_level(previous_row)
+            } else {
+                0
+            };
+            
+            // Create new row with same indentation
+            let indent_spaces = " ".repeat(indent_level);
             self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y, String::new())
+                .insert_row(self.cursor_controller.cursor_y, indent_spaces);
+            self.cursor_controller.cursor_x = indent_level;
         } else {
+            // Get the current row content and calculate indentation before any mutable operations
+            let current_row_content = self.editor_rows.get_row(self.cursor_controller.cursor_y).to_string();
+            let indent_level = self.get_indentation_level(&current_row_content);
+            
             let current_row = self
                 .editor_rows
                 .get_editor_row_mut(self.cursor_controller.cursor_y);
-            let new_row_content = current_row.row_content[self.cursor_controller.cursor_x..].into();
+            
+            let new_row_content = current_row.row_content[self.cursor_controller.cursor_x..].to_string();
             current_row
                 .row_content
                 .truncate(self.cursor_controller.cursor_x);
             EditorRows::render_row(current_row);
+            
+            // Create new line with proper indentation
+            let indent_spaces = " ".repeat(indent_level);
+            let mut new_line_content = indent_spaces;
+            new_line_content.push_str(&new_row_content);
+            
             self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y + 1, new_row_content);
+                .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
             if let Some(it) = self.syntax_highlight.as_ref() {
                 it.update_syntax(
                     self.cursor_controller.cursor_y,
@@ -224,8 +258,8 @@ impl Output {
                     &mut self.editor_rows.row_contents,
                 )
             }
+            self.cursor_controller.cursor_x = indent_level;
         }
-        self.cursor_controller.cursor_x = 0;
         self.cursor_controller.cursor_y += 1;
         self.dirty += 1;
     }
