@@ -13,6 +13,7 @@ pub(crate) enum HighlightType {
     CharLiteral,
     Comment,
     MultilineComment, // add line
+    Selection, // Text selection
     Other(Color),
 }
 
@@ -106,6 +107,7 @@ macro_rules! syntax_struct {
                     HighlightType::String => Color::Green,
                     HighlightType::CharLiteral => Color::DarkGreen,
                     HighlightType::Comment | HighlightType::MultilineComment => Color::DarkGrey,
+                    HighlightType::Selection => Color::White,
                     HighlightType::Other(color) => *color
                 }
             }

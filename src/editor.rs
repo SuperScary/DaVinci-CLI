@@ -341,6 +341,39 @@ impl Editor {
                 modifiers: KeyModifiers::NONE,
             } => self.output.move_cursor(direction),
             KeyEvent {
+                code:
+                direction
+                @
+                (KeyCode::Up
+                | KeyCode::Down
+                | KeyCode::Left
+                | KeyCode::Right
+                | KeyCode::Home
+                | KeyCode::End),
+                modifiers: KeyModifiers::SHIFT,
+            } => {
+                // Start selection if not already selecting
+                if !self.output.is_selecting() {
+                    self.output.start_selection();
+                }
+                self.output.move_cursor(direction);
+                self.output.update_selection();
+            }
+            KeyEvent {
+                code: KeyCode::Char('c'),
+                modifiers: KeyModifiers::CONTROL,
+            } => {
+                if self.output.has_selection() {
+                    self.output.copy_selection();
+                }
+            }
+            KeyEvent {
+                code: KeyCode::Char('v'),
+                modifiers: KeyModifiers::CONTROL,
+            } => {
+                self.output.paste_clipboard();
+            }
+            KeyEvent {
                 code: val @ (KeyCode::PageUp | KeyCode::PageDown),
                 modifiers: KeyModifiers::NONE,
             } => {
@@ -416,25 +449,35 @@ impl Editor {
             KeyEvent {
                 code: KeyCode::Enter,
                 modifiers: KeyModifiers::NONE,
-            } => self.output.insert_newline(),
+            } => {
+                if self.output.is_selecting() {
+                    self.output.clear_selection();
+                }
+                self.output.insert_newline()
+            }
             KeyEvent {
                 code: code @ (KeyCode::Char(..) | KeyCode::Tab),
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
-            } => match code {
-                KeyCode::Tab => {
-                    // Insert spaces based on configuration
-                    let tab_size = if self.config.editor.soft_tabs {
-                        self.config.editor.tab_size
-                    } else {
-                        1 // For hard tabs, just insert one character
-                    };
-                    for _ in 0..tab_size {
-                        self.output.insert_char(' ');
-                    }
+            } => {
+                if self.output.is_selecting() {
+                    self.output.clear_selection();
                 }
-                KeyCode::Char(ch) => self.output.insert_char(ch),
-                _ => unreachable!(),
-            },
+                match code {
+                    KeyCode::Tab => {
+                        // Insert spaces based on configuration
+                        let tab_size = if self.config.editor.soft_tabs {
+                            self.config.editor.tab_size
+                        } else {
+                            1 // For hard tabs, just insert one character
+                        };
+                        for _ in 0..tab_size {
+                            self.output.insert_char(' ');
+                        }
+                    }
+                    KeyCode::Char(ch) => self.output.insert_char(ch),
+                    _ => unreachable!(),
+                }
+            }
             _ => {}
         }
         // Reset quit attempts when any other key is pressed

@@ -9,6 +9,7 @@ use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, event, execute, queue, style, terminal};
+use crossterm::style::Color;
 use std::io::{stdout, Write};
 use std::time::Duration;
 use std::{cmp, io};
@@ -23,6 +24,11 @@ pub(crate) struct Output {
     search_index: SearchIndex,
     pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
     pub(crate) config: DaVinciConfig,
+    // Clipboard and selection state
+    clipboard: String,
+    selection_start: Option<(usize, usize)>, // (row, col)
+    selection_end: Option<(usize, usize)>,   // (row, col)
+    is_selecting: bool,
 }
 
 impl Output {
@@ -61,12 +67,16 @@ impl Output {
             cursor_controller: CursorController::new(win_size),
             editor_rows: EditorRows::new(&mut syntax_highlight),
             status_message: StatusMessage::new(
-                "HELP: Ctrl-S = Save | Ctrl-Q = Quit | Ctrl-F = Find".into(),
+                "HELP: Ctrl-S = Save | Ctrl-Q = Quit | Ctrl-F = Find | Ctrl-C = Copy | Ctrl-V = Paste".into(),
             ),
             dirty: 0,
             search_index: SearchIndex::new(),
             syntax_highlight,
             config,
+            clipboard: String::new(),
+            selection_start: None,
+            selection_end: None,
+            is_selecting: false,
         }
     }
 
@@ -193,6 +203,115 @@ impl Output {
             self.cursor_controller = cursor_controller
         }
         Ok(())
+    }
+
+    // Selection and clipboard methods
+    pub(crate) fn start_selection(&mut self) {
+        self.is_selecting = true;
+        self.selection_start = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
+        self.selection_end = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
+    }
+
+    pub(crate) fn update_selection(&mut self) {
+        if self.is_selecting {
+            self.selection_end = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
+        }
+    }
+
+    pub(crate) fn clear_selection(&mut self) {
+        self.is_selecting = false;
+        self.selection_start = None;
+        self.selection_end = None;
+    }
+
+    pub(crate) fn has_selection(&self) -> bool {
+        self.selection_start.is_some() && self.selection_end.is_some()
+    }
+
+    pub(crate) fn is_selecting(&self) -> bool {
+        self.is_selecting
+    }
+
+    pub(crate) fn get_selection_bounds(&self) -> Option<((usize, usize), (usize, usize))> {
+        if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
+            // Ensure start is before end
+            if (start.0 < end.0) || (start.0 == end.0 && start.1 <= end.1) {
+                Some((start, end))
+            } else {
+                Some((end, start))
+            }
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn copy_selection(&mut self) {
+        if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
+            let mut selected_text = String::new();
+            
+            if start_row == end_row {
+                // Single line selection
+                let row = self.editor_rows.get_editor_row(start_row);
+                let content = &row.row_content[start_col..end_col];
+                selected_text.push_str(content);
+            } else {
+                // Multi-line selection
+                for row_idx in start_row..=end_row {
+                    let row = self.editor_rows.get_editor_row(row_idx);
+                    if row_idx == start_row {
+                        // First line: from start_col to end
+                        selected_text.push_str(&row.row_content[start_col..]);
+                    } else if row_idx == end_row {
+                        // Last line: from beginning to end_col
+                        selected_text.push_str(&row.row_content[..end_col]);
+                    } else {
+                        // Middle lines: entire line
+                        selected_text.push_str(&row.row_content);
+                    }
+                    
+                    if row_idx < end_row {
+                        selected_text.push('\n');
+                    }
+                }
+            }
+            
+            self.clipboard = selected_text;
+            self.status_message.set_message(format!("Copied {} characters", self.clipboard.len()));
+        }
+    }
+
+    pub(crate) fn paste_clipboard(&mut self) {
+        if !self.clipboard.is_empty() {
+            let clipboard_content = self.clipboard.clone();
+            for ch in clipboard_content.chars() {
+                if ch == '\n' {
+                    self.insert_newline();
+                } else {
+                    self.insert_char(ch);
+                }
+            }
+            self.status_message.set_message(format!("Pasted {} characters", clipboard_content.len()));
+        }
+    }
+
+    pub(crate) fn is_position_selected(&self, row: usize, col: usize) -> bool {
+        if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
+            if row == start_row && row == end_row {
+                // Single line selection
+                col >= start_col && col < end_col
+            } else if row == start_row {
+                // First line of multi-line selection
+                col >= start_col
+            } else if row == end_row {
+                // Last line of multi-line selection
+                col < end_col
+            } else {
+                // Middle line of multi-line selection
+                row > start_row && row < end_row
+            }
+        } else {
+            false
+        }
     }
 
     fn draw_message_bar(&mut self) {
@@ -431,26 +550,60 @@ impl Output {
                 
                 // Draw the actual content with syntax highlighting
                 if self.config.syntax.enable_syntax_highlighting {
-                    self.syntax_highlight
-                        .as_ref()
-                        .map(|syntax_highlight| {
-                            // Ensure highlight array has enough elements
-                            let highlight_slice = if start < row.highlight.len() && end <= row.highlight.len() {
-                                &row.highlight[start..end]
+                    if let Some(syntax_highlight) = &self.syntax_highlight {
+                        // Ensure highlight array has enough elements
+                        let highlight_slice = if start < row.highlight.len() && end <= row.highlight.len() {
+                            &row.highlight[start..end]
+                        } else {
+                            // Fallback to normal highlighting if indices are out of bounds
+                            &[]
+                        };
+                        
+                        // Apply selection highlighting over syntax highlighting
+                        let mut final_highlights = highlight_slice.to_vec();
+                        if self.has_selection() {
+                            for (char_idx, _) in render.char_indices().enumerate() {
+                                let actual_char_idx = start + char_idx;
+                                if self.is_position_selected(file_row, actual_char_idx) {
+                                    if char_idx < final_highlights.len() {
+                                        final_highlights[char_idx] = HighlightType::Selection;
+                                    } else {
+                                        final_highlights.push(HighlightType::Selection);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        syntax_highlight.color_row(
+                            &render,
+                            &final_highlights,
+                            &mut self.editor_contents,
+                        );
+                    } else {
+                        self.editor_contents.push_str(&render);
+                    }
+                } else {
+                    // No syntax highlighting, but still apply selection highlighting
+                    if self.has_selection() {
+                        let mut current_color = Color::Reset;
+                        for (char_idx, c) in render.char_indices() {
+                            let actual_char_idx = start + char_idx;
+                            let color = if self.is_position_selected(file_row, actual_char_idx) {
+                                Color::White
                             } else {
-                                // Fallback to normal highlighting if indices are out of bounds
-                                &[]
+                                Color::Reset
                             };
                             
-                            syntax_highlight.color_row(
-                                &render,
-                                highlight_slice,
-                                &mut self.editor_contents,
-                            )
-                        })
-                        .unwrap_or_else(|| self.editor_contents.push_str(&render));
-                } else {
-                    self.editor_contents.push_str(&render);
+                            if current_color != color {
+                                current_color = color;
+                                let _ = queue!(self.editor_contents, style::SetForegroundColor(color));
+                            }
+                            self.editor_contents.push(c);
+                        }
+                        let _ = queue!(self.editor_contents, style::SetForegroundColor(Color::Reset));
+                    } else {
+                        self.editor_contents.push_str(&render);
+                    }
                 }
             }
             queue!(
