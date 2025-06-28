@@ -41,7 +41,7 @@ impl CursorController {
             })
     }
 
-    pub(crate) fn scroll(&mut self, editor_rows: &EditorRows) {
+    pub(crate) fn scroll(&mut self, editor_rows: &EditorRows, gutter_width: usize) {
         self.render_x = 0;
         if self.cursor_y < editor_rows.number_of_rows() {
             self.render_x = self.get_render_x(editor_rows.get_editor_row(self.cursor_y));
@@ -50,7 +50,6 @@ impl CursorController {
         if self.cursor_y >= self.row_offset + self.screen_rows {
             self.row_offset = self.cursor_y - self.screen_rows + 1;
         }
-        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
         let content_width = self.screen_columns.saturating_sub(gutter_width);
         self.column_offset = cmp::min(self.column_offset, self.render_x);
         if self.render_x >= self.column_offset + content_width {
@@ -70,7 +69,7 @@ impl CursorController {
                     self.cursor_x -= 1;
                 } else if self.cursor_y > 0 {
                     self.cursor_y -= 1;
-                    self.cursor_x = editor_rows.get_row(self.cursor_y).len();
+                    self.cursor_x = editor_rows.get_editor_row(self.cursor_y).char_count();
                 }
             }
             KeyCode::Down => {
@@ -80,7 +79,8 @@ impl CursorController {
             }
             KeyCode::Right => {
                 if self.cursor_y < number_of_rows {
-                    match self.cursor_x.cmp(&editor_rows.get_row(self.cursor_y).len()) {
+                    let row_char_count = editor_rows.get_editor_row(self.cursor_y).char_count();
+                    match self.cursor_x.cmp(&row_char_count) {
                         Ordering::Less => self.cursor_x += 1,
                         Ordering::Equal => {
                             self.cursor_y += 1;
@@ -92,17 +92,17 @@ impl CursorController {
             }
             KeyCode::End => {
                 if self.cursor_y < number_of_rows {
-                    self.cursor_x = editor_rows.get_row(self.cursor_y).len();
+                    self.cursor_x = editor_rows.get_editor_row(self.cursor_y).char_count();
                 }
             }
             KeyCode::Home => self.cursor_x = 0,
             _ => unimplemented!(),
         }
-        let row_len = if self.cursor_y < number_of_rows {
-            editor_rows.get_row(self.cursor_y).len()
+        let row_char_count = if self.cursor_y < number_of_rows {
+            editor_rows.get_editor_row(self.cursor_y).char_count()
         } else {
             0
         };
-        self.cursor_x = cmp::min(self.cursor_x, row_len);
+        self.cursor_x = cmp::min(self.cursor_x, row_char_count);
     }
 }

@@ -1,6 +1,7 @@
 use crate::d_io::Reader;
 use crate::highlighting::{HighlightType, SyntaxHighlight};
-use crate::{TAB_STOP, d_io, QUIT_TIMES, prompt};
+use crate::{TAB_STOP, d_io, prompt};
+use crate::config::DaVinciConfig;
 use d_io::Output;
 use std::io::{ErrorKind, Write, stdout};
 use std::path::PathBuf;
@@ -25,13 +26,23 @@ impl Row {
     }
 
     pub(crate) fn insert_char(&mut self, at: usize, ch: char) {
-        self.row_content.insert(at, ch);
+        // Convert character index to byte index for safe insertion
+        let byte_index = self.row_content
+            .char_indices()
+            .nth(at)
+            .map(|(i, _)| i)
+            .unwrap_or_else(|| self.row_content.len());
+        
+        self.row_content.insert(byte_index, ch);
         EditorRows::render_row(self)
     }
 
     pub(crate) fn delete_char(&mut self, at: usize) {
-        self.row_content.remove(at);
-        EditorRows::render_row(self)
+        // Convert character index to byte index for safe deletion
+        if let Some((byte_index, _)) = self.row_content.char_indices().nth(at) {
+            self.row_content.remove(byte_index);
+            EditorRows::render_row(self)
+        }
     }
 
     pub(crate) fn get_row_content_x(&self, render_x: usize) -> usize {
@@ -46,6 +57,20 @@ impl Row {
             }
         }
         0
+    }
+
+    // Helper method to get character count (UTF-8 safe)
+    pub(crate) fn char_count(&self) -> usize {
+        self.row_content.chars().count()
+    }
+
+    // Helper method to get a substring by character indices (UTF-8 safe)
+    pub(crate) fn substring_by_chars(&self, start: usize, end: usize) -> String {
+        self.row_content
+            .chars()
+            .skip(start)
+            .take(end - start)
+            .collect()
     }
 }
 
@@ -69,7 +94,18 @@ impl EditorRows {
         file: PathBuf,
         syntax_highlight: &mut Option<Box<dyn SyntaxHighlight>>,
     ) -> Self {
-        let file_contents = fs::read_to_string(&file).expect("Unable to read file");
+        // Use lossy UTF-8 conversion to handle invalid UTF-8 gracefully
+        let file_contents = match fs::read_to_string(&file) {
+            Ok(contents) => contents,
+            Err(_) => {
+                // If UTF-8 conversion fails, try reading as bytes and converting lossily
+                match fs::read(&file) {
+                    Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                    Err(_) => String::new(), // Return empty string if file can't be read
+                }
+            }
+        };
+        
         let mut row_contents = Vec::new();
         file.extension()
             .and_then(|ext| ext.to_str())
@@ -203,15 +239,17 @@ impl Write for EditorContents {
 pub(crate) struct Editor {
     reader: Reader,
     output: Output,
-    quit_times: u8,
+    config: DaVinciConfig,
+    quit_attempts: u8,
 }
 
 impl Editor {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(config: DaVinciConfig) -> Self {
         Self {
             reader: Reader,
-            output: Output::new(),
-            quit_times: QUIT_TIMES,
+            output: Output::new(config.clone()),
+            config,
+            quit_attempts: 0,
         }
     }
 
@@ -221,12 +259,13 @@ impl Editor {
                 code: KeyCode::Char('q'),
                 modifiers: KeyModifiers::CONTROL,
             } => {
-                if self.output.dirty > 0 && self.quit_times > 0 {
+                if self.output.dirty > 0 && self.quit_attempts < self.config.behavior.quit_times {
+                    self.quit_attempts += 1;
+                    let remaining = self.config.behavior.quit_times - self.quit_attempts;
                     self.output.status_message.set_message(format!(
                         "WARNING!!! File has unsaved changes. Press Ctrl-Q {} more times to quit.",
-                        self.quit_times
+                        remaining
                     ));
-                    self.quit_times -= 1;
                     return Ok(true);
                 }
                 return Ok(false);
@@ -325,8 +364,13 @@ impl Editor {
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
             } => match code {
                 KeyCode::Tab => {
-                    // Insert 4 spaces for soft indentation
-                    for _ in 0..4 {
+                    // Insert spaces based on configuration
+                    let tab_size = if self.config.editor.soft_tabs {
+                        self.config.editor.tab_size
+                    } else {
+                        1 // For hard tabs, just insert one character
+                    };
+                    for _ in 0..tab_size {
                         self.output.insert_char(' ');
                     }
                 }
@@ -335,7 +379,8 @@ impl Editor {
             },
             _ => {}
         }
-        self.quit_times = QUIT_TIMES;
+        // Reset quit attempts when any other key is pressed
+        self.quit_attempts = 0;
         Ok(true)
     }
 

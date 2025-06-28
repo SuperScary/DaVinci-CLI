@@ -25,8 +25,12 @@ pub(crate) trait SyntaxHighlight {
     fn update_syntax(&self, at: usize, editor_rows: &mut Vec<Row>);
     fn color_row(&self, render: &str, highlight: &[HighlightType], out: &mut EditorContents) {
         let mut current_color = self.syntax_color(&HighlightType::Normal);
-        render.char_indices().for_each(|(i, c)| {
-            let color = self.syntax_color(&highlight[i]);
+        render.char_indices().enumerate().for_each(|(char_index, (_byte_index, c))| {
+            let color = if char_index < highlight.len() {
+                self.syntax_color(&highlight[char_index])
+            } else {
+                self.syntax_color(&HighlightType::Normal)
+            };
             if current_color != color {
                 current_color = color;
                 let _ = queue!(out, SetForegroundColor(color));
@@ -254,7 +258,7 @@ syntax_struct! {
         keywords : {
             [Color::Yellow;
                 "auto","break","case","char","const","continue","default","do","double","else",
-                "enum","extern","float","for","goto","if","int","long","register","return",
+                "enum","extern","float","for","goto","if", "include", "int","long","register","return",
                 "short","signed","sizeof","static","struct","switch","typedef", "union", "unsigned",
                 "void", "volatile", "while"
             ],
@@ -280,6 +284,270 @@ syntax_struct! {
                 "void", "volatile", "while"
             ],
             [Color::Magenta;  ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct PythonHighlight {
+        extensions:["py"],
+        file_type:"python",
+        comment_start:"#",
+        keywords : {
+            [Color::Yellow;
+                "and","as","assert","async","await","break","class","continue","def","del",
+                "elif","else","except","finally","for","from", "global", "if", "import",
+                "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return",
+                "try", "while", "with", "yield"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("", ""))
+    }
+}
+
+syntax_struct! {
+    struct GoHighlight {
+        extensions:["go", "mod"],
+        file_type:"go",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "break","case","chan","const","continue","default","defer","else","fallthrough",
+                "for","func","go","goto","if", "import", "interface", "map", "module", "package", "range",
+                "return", "select", "struct", "switch", "type", "var"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct JavaScriptHighlight {
+        extensions:["js","jsx"],
+        file_type:"javascript",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "break","case","catch","class","const","continue","debugger","default","delete",
+                "do","else","export","extends","finally","for", "function", "if", "import",
+                "in", "instanceof", "let", "new", "return", "super", "switch", "this",
+                "throw", "try", "typeof", "var", "void", "while", "with", "yield"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct TypeScriptHighlight {
+        extensions:["ts","tsx"],
+        file_type:"typescript",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "abstract","as","async","await","break","case","catch","class","const",
+                "continue","debugger","default","delete","do","else", "enum", "export",
+                "extends", "finally", "for", "function", "if", "implements", "import",
+                "in", "instanceof", "interface", "let", "new", "return", "super",
+                "switch", "this", "throw", "try", "type", "typeof", "var", "void",
+                "while", "with", "yield"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+/*syntax_struct! {
+    struct CSharpHighlight {
+        extensions:["cs"],
+        file_type:"csharp",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "abstract","as","base","break","case","catch","class","const","continue",
+                "default","delegate","do","else","enum","event","explicit","extern",
+                "finally", "fixed", "for", "foreach", "goto", "if", "implicit", "in",
+                "interface", "internal", "is", "lock", "namespace", "new", "null",
+                "operator", "out", "override", "params", "private", "protected",
+                "public", "readonly", "ref", "return", "sealed", "sizeof",
+                "stackalloc", "static", "struct", "switch", "this", "throw",
+                "try", "typeof", "unchecked", "unsafe", "using", "virtual",
+                "void", "volatile", "while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}*/
+
+syntax_struct! {
+    struct RHighlight {
+        extensions:["r"],
+        file_type:"r",
+        comment_start:"#",
+        keywords : {
+            [Color::Yellow;
+                "if", "else", "for", "while", "function", "return", "break", "next",
+                "repeat", "switch", "case", "default", "try", "catch", "finally",
+                "library", "require"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("", "")) // R does not have multiline comments
+    }
+}
+
+syntax_struct! {
+    struct PHPHighlight {
+        extensions:["php"],
+        file_type:"php",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "abstract","and","array","as","break","case","catch","class","clone",
+                "const","continue","declare","default","die","do","echo", "else", "elseif",
+                "empty", "enddeclare", "endfor", "endforeach", "endif", "endswitch",
+                "endwhile", "eval", "exit", "extends", "final", "finally", "fn",
+                "for", "foreach", "function", "global", "goto", "if", "implements",
+                "include", "include_once", "instanceof", "insteadof", "interface",
+                "isset", "list", "namespace", "new", "or", "print", "private",
+                "protected", "public", "require", "require_once", "return",
+                "static", "switch", "throw", "trait",  "try",
+                "unset",  "use" ,"var" ,"while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct ObjectiveCHighlight {
+        extensions:["m","mm"],
+        file_type:"objective-c",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "auto","break","case","char","const","continue","default","do","double",
+                "else","enum","extern","float","for","goto","if", "include", "int",
+                "long","register","return","short","signed","sizeof","static",
+                "struct", "switch", "typedef", "union", "unsigned", "void", "volatile",
+                "while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct SwiftHightlight {
+        extensions:["swift"],
+        file_type:"swift",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "associatedtype", "class", "deinit", "enum", "extension", "fileprivate",
+                "func", "import", "init", "inout", "internal", "let", "open", "operator",
+                "private", "protocol", "public", "static", "struct", "subscript",
+                "typealias", "var"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct KotlinHighlight {
+        extensions:["kt","kts"],
+        file_type:"kotlin",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "abstract","as","break","class","continue","do","else","false","final",
+                "for","fun","if", "import", "in", "interface", "is", "null", "object",
+                "package", "return", "super", "this", "throw", "true", "try", "typealias",
+                "val", "var", "when", "while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct DartHighlight {
+        extensions:["dart"],
+        file_type:"dart",
+        comment_start:"//",
+        keywords : {
+            [Color::Yellow;
+                "abstract","as","assert","async","await","break","case","catch","class",
+                "const","continue","default","do","else", "enum", "extends", "export",
+                "extends", "extension", "final", "finally", "for", "if", "implements",
+                "import", "in", "interface", "is", "library", "new", "null", "part",
+                "rethrow", "return", "set", "static", "super", "switch", "this",
+                "throw", "try", "typedef", "var", "void", "while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct RubyHighlight {
+        extensions:["rb"],
+        file_type:"ruby",
+        comment_start:"#",
+        keywords : {
+            [Color::Yellow;
+                "alias","and","begin","break","case","class","def","defined?","do",
+                "else", "elsif", "end", "ensure", "false", "for", "if", "in",
+                "module", "next", "nil", "not", "or", "redo", "rescue", "retry",
+                "return", "self", "super", "then", "true", "undef", "unless",
+                "until", "when", "while"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("", "")) // Ruby does not have multiline comments
+    }
+}
+
+syntax_struct! {
+    struct HTMLHighlight {
+        extensions:["html","htm"],
+        file_type:"html",
+        comment_start:"<!--",
+        keywords : {
+            [Color::Yellow;
+                "html", "head", "body", "title", "meta", "link", "script", "style", "div",
+                "span", "p", "a", "img", "ul", "ol", "li", "table", "tr", "td", "th",
+                "form", "input", "button"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("<!--", "-->"))
+    }
+}
+
+syntax_struct! {
+    struct CSSHighlight {
+        extensions:["css"],
+        file_type:"css",
+        comment_start:"/*",
+        keywords : {
+            [Color::Yellow;
+                "background", "border", "color", "display", "font", "height", "margin",
+                "padding", "position", "text", "width"
+            ],
+            [Color::Magenta; ]
         },
         multiline_comment: Some(("/*", "*/"))
     }

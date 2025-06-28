@@ -1,9 +1,10 @@
 use crate::d_cursor::CursorController;
 use crate::editor::{EditorContents, EditorRows};
 use crate::event::KeyModifiers;
-use crate::highlighting::{CHighlight, HighlightType, JavaHighlight, RustHighlight, SyntaxHighlight};
+use crate::highlighting::{CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight, JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight};
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
+use crate::config::DaVinciConfig;
 use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::terminal::ClearType;
@@ -21,6 +22,7 @@ pub(crate) struct Output {
     pub(crate) dirty: u64,
     search_index: SearchIndex,
     pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
+    pub(crate) config: DaVinciConfig,
 }
 
 impl Output {
@@ -28,28 +30,43 @@ impl Output {
         let list: Vec<Box<dyn SyntaxHighlight>> = vec![
             Box::new(RustHighlight::new()), 
             Box::new(CHighlight::new()),
-            Box::new(JavaHighlight::new())
+            Box::new(JavaHighlight::new()),
+            Box::new(PythonHighlight::new()),
+            Box::new(GoHighlight::new()),
+            Box::new(JavaScriptHighlight::new()),
+            Box::new(TypeScriptHighlight::new()),
+            /*Box::new(CSharpHighlight::new()),
+            Box::new(RHighlight::new()),
+            Box::new(PHPHighlight::new()),
+            Box::new(ObjectiveCHighlight::new()),
+            Box::new(SwiftHightlight::new()),
+            Box::new(KotlinHighlight::new()),
+            Box::new(DartHighlight::new()),
+            Box::new(RubyHighlight::new()),*/
+            Box::new(HTMLHighlight::new()),
+            Box::new(CSSHighlight::new()),
         ];
         list.into_iter()
             .find(|it| it.extensions().contains(&extension))
     }
 
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(config: DaVinciConfig) -> Self {
         let win_size = terminal::size()
             .map(|(x, y)| (x as usize, y as usize - 2))
             .unwrap();
-        let mut syntax_highlight = None; // modify
+        let mut syntax_highlight = None;
         Self {
             win_size,
             editor_contents: EditorContents::new(),
             cursor_controller: CursorController::new(win_size),
-            editor_rows: EditorRows::new(&mut syntax_highlight), //modify
+            editor_rows: EditorRows::new(&mut syntax_highlight),
             status_message: StatusMessage::new(
                 "HELP: Ctrl-S = Save | Ctrl-Q = Quit | Ctrl-F = Find".into(),
             ),
             dirty: 0,
             search_index: SearchIndex::new(),
             syntax_highlight,
+            config,
         }
     }
 
@@ -112,13 +129,34 @@ impl Output {
                         None => row.render.find(&keyword),
                         Some(dir) => {
                             let index = if matches!(dir, SearchDirection::Forward) {
-                                let start =
-                                    cmp::min(row.render.len(), output.search_index.x_index + 1);
-                                row.render[start..]
+                                // Convert character index to byte index for safe slicing
+                                let start_char = output.search_index.x_index + 1;
+                                let start_byte = row.render
+                                    .char_indices()
+                                    .nth(start_char)
+                                    .map(|(i, _)| i)
+                                    .unwrap_or_else(|| row.render.len());
+                                
+                                row.render[start_byte..]
                                     .find(&keyword)
-                                    .map(|index| index + start)
+                                    .map(|index| {
+                                        // Convert back to character index
+                                        let byte_index = start_byte + index;
+                                        row.render[..byte_index].chars().count()
+                                    })
                             } else {
-                                row.render[..output.search_index.x_index].rfind(&keyword)
+                                // Convert character index to byte index for safe slicing
+                                let end_byte = row.render
+                                    .char_indices()
+                                    .nth(output.search_index.x_index)
+                                    .map(|(i, _)| i)
+                                    .unwrap_or_else(|| row.render.len());
+                                
+                                row.render[..end_byte].rfind(&keyword)
+                                    .map(|byte_index| {
+                                        // Convert back to character index
+                                        row.render[..byte_index].chars().count()
+                                    })
                             };
                             if index.is_none() {
                                 break;
@@ -164,8 +202,13 @@ impl Output {
         )
             .unwrap();
         if let Some(msg) = self.status_message.message() {
-            self.editor_contents
-                .push_str(&msg[..cmp::min(self.win_size.0, msg.len())]);
+            let msg_chars: Vec<char> = msg.chars().collect();
+            let truncated_msg = if msg_chars.len() > self.win_size.0 {
+                msg_chars[..self.win_size.0].iter().collect::<String>()
+            } else {
+                msg.clone()
+            };
+            self.editor_contents.push_str(&truncated_msg);
         }
     }
 
@@ -182,10 +225,8 @@ impl Output {
                 .delete_char(self.cursor_controller.cursor_x - 1);
             self.cursor_controller.cursor_x -= 1;
         } else {
-            let previous_row_content = self
-                .editor_rows
-                .get_row(self.cursor_controller.cursor_y - 1);
-            self.cursor_controller.cursor_x = previous_row_content.len();
+            let previous_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y - 1);
+            self.cursor_controller.cursor_x = previous_row.char_count();
             self.editor_rows
                 .join_adjacent_rows(self.cursor_controller.cursor_y);
             self.cursor_controller.cursor_y -= 1;
@@ -214,7 +255,7 @@ impl Output {
     pub(crate) fn insert_newline(&mut self) {
         if self.cursor_controller.cursor_x == 0 {
             // If cursor is at the beginning, check previous line for indentation
-            let indent_level = if self.cursor_controller.cursor_y > 0 {
+            let indent_level = if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
                 let previous_row = self.editor_rows.get_row(self.cursor_controller.cursor_y - 1);
                 self.get_indentation_level(previous_row)
             } else {
@@ -228,17 +269,26 @@ impl Output {
             self.cursor_controller.cursor_x = indent_level;
         } else {
             // Get the current row content and calculate indentation before any mutable operations
-            let current_row_content = self.editor_rows.get_row(self.cursor_controller.cursor_y).to_string();
-            let indent_level = self.get_indentation_level(&current_row_content);
+            let current_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y);
+            let indent_level = if self.config.editor.auto_indent {
+                self.get_indentation_level(&current_row.row_content)
+            } else {
+                0
+            };
             
             let current_row = self
                 .editor_rows
                 .get_editor_row_mut(self.cursor_controller.cursor_y);
             
-            let new_row_content = current_row.row_content[self.cursor_controller.cursor_x..].to_string();
-            current_row
-                .row_content
-                .truncate(self.cursor_controller.cursor_x);
+            // Use character-based substring operation for UTF-8 safety
+            let new_row_content = current_row.substring_by_chars(
+                self.cursor_controller.cursor_x,
+                current_row.char_count()
+            );
+            
+            // Truncate the current row at the cursor position
+            let truncated_content = current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
+            current_row.row_content = truncated_content;
             EditorRows::render_row(current_row);
             
             // Create new line with proper indentation
@@ -325,20 +375,29 @@ impl Output {
     fn draw_rows(&mut self) {
         let screen_rows = self.win_size.1;
         let screen_columns = self.win_size.0;
-        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
+        let gutter_width = if self.config.editor.show_line_numbers {
+            self.config.editor.gutter_width
+        } else {
+            0
+        };
         let content_width = screen_columns.saturating_sub(gutter_width);
         
         for i in 0..screen_rows {
             let file_row = i + self.cursor_controller.row_offset;
             if file_row >= self.editor_rows.number_of_rows() {
                 if self.editor_rows.number_of_rows() == 0 && i == screen_rows / 3 {
-                    let mut welcome = format!("DaVinci CLI --- Version {}", VERSION);
-                    if welcome.len() > content_width {
-                        welcome.truncate(content_width)
-                    }
-                    let mut padding = (content_width - welcome.len()) / 2;
+                    let welcome = self.config.display.welcome_message.replace("{}", VERSION);
+                    let welcome_chars: Vec<char> = welcome.chars().collect();
+                    let welcome = if welcome_chars.len() > content_width {
+                        welcome_chars[..content_width].iter().collect::<String>()
+                    } else {
+                        welcome
+                    };
+                    let mut padding = (content_width - welcome.chars().count()) / 2;
                     // Add gutter padding
-                    (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
+                    if self.config.editor.show_line_numbers {
+                        (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
+                    }
                     if padding != 0 {
                         padding -= 1
                     }
@@ -346,31 +405,53 @@ impl Output {
                     self.editor_contents.push_str(&welcome);
                 } else {
                     // Display empty gutter for empty lines
-                    (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
+                    if self.config.editor.show_line_numbers {
+                        (0..gutter_width).for_each(|_| self.editor_contents.push(' '));
+                    }
                 }
             } else {
                 let row = self.editor_rows.get_editor_row(file_row);
                 let render = &row.render;
                 let column_offset = self.cursor_controller.column_offset;
-                let len = cmp::min(render.len().saturating_sub(column_offset), content_width);
+                
+                // Use character-based operations for UTF-8 safety
+                let render_chars: Vec<char> = render.chars().collect();
+                let len = cmp::min(render_chars.len().saturating_sub(column_offset), content_width);
                 let start = if len == 0 { 0 } else { column_offset };
-                let render = render.chars().skip(start).take(len).collect::<String>();
+                let end = start + len;
+                
+                // Create the rendered string using character operations
+                let render = render_chars[start..end].iter().collect::<String>();
                 
                 // Draw line number in gutter
-                let line_num = format!("{:>5} ", file_row + 1);
-                self.editor_contents.push_str(&line_num);
+                if self.config.editor.show_line_numbers {
+                    let line_num = format!("{:>5} ", file_row + 1);
+                    self.editor_contents.push_str(&line_num);
+                }
                 
                 // Draw the actual content with syntax highlighting
-                self.syntax_highlight
-                    .as_ref()
-                    .map(|syntax_highlight| {
-                        syntax_highlight.color_row(
-                            &render,
-                            &row.highlight[start..start + len],
-                            &mut self.editor_contents,
-                        )
-                    })
-                    .unwrap_or_else(|| self.editor_contents.push_str(&render));
+                if self.config.syntax.enable_syntax_highlighting {
+                    self.syntax_highlight
+                        .as_ref()
+                        .map(|syntax_highlight| {
+                            // Ensure highlight array has enough elements
+                            let highlight_slice = if start < row.highlight.len() && end <= row.highlight.len() {
+                                &row.highlight[start..end]
+                            } else {
+                                // Fallback to normal highlighting if indices are out of bounds
+                                &[]
+                            };
+                            
+                            syntax_highlight.color_row(
+                                &render,
+                                highlight_slice,
+                                &mut self.editor_contents,
+                            )
+                        })
+                        .unwrap_or_else(|| self.editor_contents.push_str(&render));
+                } else {
+                    self.editor_contents.push_str(&render);
+                }
             }
             queue!(
                 self.editor_contents,
@@ -387,12 +468,16 @@ impl Output {
     }
 
     pub(crate) fn refresh_screen(&mut self) -> crossterm::Result<()> {
-        self.cursor_controller.scroll(&self.editor_rows);
+        let gutter_width = if self.config.editor.show_line_numbers {
+            self.config.editor.gutter_width
+        } else {
+            0
+        };
+        self.cursor_controller.scroll(&self.editor_rows, gutter_width);
         queue!(self.editor_contents, cursor::Hide, cursor::MoveTo(0, 0))?;
         self.draw_rows();
         self.draw_status_bar();
         self.draw_message_bar();
-        let gutter_width = 6; // Width for line numbers (e.g., "99999 ")
         let cursor_x = self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
         let cursor_y = self.cursor_controller.cursor_y - self.cursor_controller.row_offset;
         queue!(

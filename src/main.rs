@@ -6,6 +6,7 @@ mod d_io;
 mod d_cursor;
 mod status;
 
+use crate::config::DaVinciConfig;
 use crate::d_io::Output;
 use crossterm::{event, terminal};
 use editor::EditorContents;
@@ -14,7 +15,6 @@ use crate::editor::Editor;
 
 const VERSION: &str = "0.0.1";
 const TAB_STOP: usize = 8;
-const QUIT_TIMES: u8 = 3;
 
 struct CleanUp;
 
@@ -86,8 +86,24 @@ macro_rules! prompt {
 
 fn main() -> crossterm::Result<()> {
     let _clean_up = CleanUp;
+    
+    // Load configuration
+    let config = match DaVinciConfig::load() {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("Failed to load configuration: {}", e);
+            eprintln!("Using default configuration...");
+            DaVinciConfig::default()
+        }
+    };
+    
+    // Create default config file if it doesn't exist
+    if let Err(e) = DaVinciConfig::create_default_config() {
+        eprintln!("Warning: Could not create default config file: {}", e);
+    }
+    
     terminal::enable_raw_mode()?;
-    let mut editor = Editor::new();
+    let mut editor = Editor::new(config);
     while editor.run()? {}
     Ok(())
 }
