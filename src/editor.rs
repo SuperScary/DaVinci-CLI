@@ -45,13 +45,71 @@ impl Row {
         }
     }
 
+    // Calculate the display width of a character (1 for normal chars, 2 for wide chars like emojis)
+    pub(crate) fn char_width(ch: char) -> usize {
+        match ch {
+            '\t' => TAB_STOP,
+            // Check if character is in the "Wide" or "Fullwidth" Unicode categories
+            ch if ch as u32 >= 0x1100 && (
+                (ch as u32 <= 0x115F) || // Hangul Jamo
+                (ch as u32 == 0x2329) || (ch as u32 == 0x232A) || // Miscellaneous Technical
+                (ch as u32 >= 0x2E80 && ch as u32 <= 0x303E) || // CJK Radicals Supplement, etc.
+                (ch as u32 >= 0x3040 && ch as u32 <= 0x309F) || // Hiragana
+                (ch as u32 >= 0x30A0 && ch as u32 <= 0x30FF) || // Katakana
+                (ch as u32 >= 0x3100 && ch as u32 <= 0x312F) || // Bopomofo
+                (ch as u32 >= 0x3130 && ch as u32 <= 0x318F) || // Hangul Compatibility Jamo
+                (ch as u32 >= 0x3190 && ch as u32 <= 0x319F) || // Kanbun
+                (ch as u32 >= 0x31A0 && ch as u32 <= 0x31BF) || // Bopomofo Extended
+                (ch as u32 >= 0x31C0 && ch as u32 <= 0x31EF) || // CJK Strokes
+                (ch as u32 >= 0x31F0 && ch as u32 <= 0x31FF) || // Katakana Phonetic Extensions
+                (ch as u32 >= 0x3200 && ch as u32 <= 0x32FF) || // Enclosed CJK Letters and Months
+                (ch as u32 >= 0x3300 && ch as u32 <= 0x33FF) || // CJK Compatibility
+                (ch as u32 >= 0x3400 && ch as u32 <= 0x4DBF) || // CJK Unified Ideographs Extension A
+                (ch as u32 >= 0x4E00 && ch as u32 <= 0x9FFF) || // CJK Unified Ideographs
+                (ch as u32 >= 0xA000 && ch as u32 <= 0xA48F) || // Yi Syllables
+                (ch as u32 >= 0xA490 && ch as u32 <= 0xA4CF) || // Yi Radicals
+                (ch as u32 >= 0xAC00 && ch as u32 <= 0xD7AF) || // Hangul Syllables
+                (ch as u32 >= 0xF900 && ch as u32 <= 0xFAFF) || // CJK Compatibility Ideographs
+                (ch as u32 >= 0xFE10 && ch as u32 <= 0xFE1F) || // Vertical Forms
+                (ch as u32 >= 0xFE30 && ch as u32 <= 0xFE4F) || // CJK Compatibility Forms
+                (ch as u32 >= 0xFF00 && ch as u32 <= 0xFFEF) || // Halfwidth and Fullwidth Forms
+                (ch as u32 >= 0x1B000 && ch as u32 <= 0x1B0FF) || // Kana Supplement
+                (ch as u32 >= 0x1D300 && ch as u32 <= 0x1D35F) || // Tai Xuan Jing Symbols
+                (ch as u32 >= 0x1F000 && ch as u32 <= 0x1F02F) || // Mahjong Tiles
+                (ch as u32 >= 0x1F030 && ch as u32 <= 0x1F09F) || // Domino Tiles
+                (ch as u32 >= 0x1F0A0 && ch as u32 <= 0x1F0FF) || // Playing Cards
+                (ch as u32 >= 0x1F100 && ch as u32 <= 0x1F1FF) || // Enclosed Alphanumeric Supplement
+                (ch as u32 >= 0x1F200 && ch as u32 <= 0x1F2FF) || // Enclosed Ideographic Supplement
+                (ch as u32 >= 0x1F300 && ch as u32 <= 0x1F5FF) || // Miscellaneous Symbols and Pictographs
+                (ch as u32 >= 0x1F600 && ch as u32 <= 0x1F64F) || // Emoticons
+                (ch as u32 >= 0x1F650 && ch as u32 <= 0x1F67F) || // Ornamental Dingbats
+                (ch as u32 >= 0x1F680 && ch as u32 <= 0x1F6FF) || // Transport and Map Symbols
+                (ch as u32 >= 0x1F700 && ch as u32 <= 0x1F77F) || // Alchemical Symbols
+                (ch as u32 >= 0x1F780 && ch as u32 <= 0x1F7FF) || // Geometric Shapes Extended
+                (ch as u32 >= 0x1F800 && ch as u32 <= 0x1F8FF) || // Supplemental Arrows-C
+                (ch as u32 >= 0x1F900 && ch as u32 <= 0x1F9FF) || // Supplemental Symbols and Pictographs
+                (ch as u32 >= 0x1FA00 && ch as u32 <= 0x1FA6F) || // Chess Symbols
+                (ch as u32 >= 0x1FA70 && ch as u32 <= 0x1FAFF) || // Symbols and Pictographs Extended-A
+                (ch as u32 >= 0x20000 && ch as u32 <= 0x2A6DF) || // CJK Unified Ideographs Extension B
+                (ch as u32 >= 0x2A700 && ch as u32 <= 0x2B73F) || // CJK Unified Ideographs Extension C
+                (ch as u32 >= 0x2B740 && ch as u32 <= 0x2B81F) || // CJK Unified Ideographs Extension D
+                (ch as u32 >= 0x2B820 && ch as u32 <= 0x2CEAF) || // CJK Unified Ideographs Extension E
+                (ch as u32 >= 0x2CEB0 && ch as u32 <= 0x2EBEF) || // CJK Unified Ideographs Extension F
+                (ch as u32 >= 0x30000 && ch as u32 <= 0x3134F) || // CJK Unified Ideographs Extension G
+                (ch as u32 >= 0x31350 && ch as u32 <= 0x323AF)    // CJK Unified Ideographs Extension H
+            ) => 2,
+            _ => 1,
+        }
+    }
+
     pub(crate) fn get_row_content_x(&self, render_x: usize) -> usize {
         let mut current_render_x = 0;
         for (cursor_x, ch) in self.row_content.chars().enumerate() {
+            let char_width = Self::char_width(ch);
             if ch == '\t' {
                 current_render_x += (TAB_STOP - 1) - (current_render_x % TAB_STOP);
             }
-            current_render_x += 1;
+            current_render_x += char_width;
             if current_render_x > render_x {
                 return cursor_x;
             }

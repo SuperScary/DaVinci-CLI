@@ -36,7 +36,8 @@ impl CursorController {
                 if c == '\t' {
                     render_x + (TAB_STOP - 1) - (render_x % TAB_STOP) + 1
                 } else {
-                    render_x + 1
+                    // Use the shared Unicode width calculation
+                    render_x + crate::editor::Row::char_width(c)
                 }
             })
     }
