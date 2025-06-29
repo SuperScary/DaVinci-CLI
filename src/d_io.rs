@@ -1,5 +1,5 @@
 use crate::d_cursor::CursorController;
-use crate::editor::{EditorContents, EditorRows};
+use crate::editor::{EditorContents, EditorRows, Row};
 use crate::event::KeyModifiers;
 use crate::highlighting::{CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight, JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight};
 use crate::search::{SearchDirection, SearchIndex};
@@ -29,6 +29,9 @@ pub(crate) struct Output {
     selection_start: Option<(usize, usize)>, // (row, col)
     selection_end: Option<(usize, usize)>,   // (row, col)
     is_selecting: bool,
+    // Undo stack
+    undo_stack: Vec<(Vec<Row>, CursorController, u64)>,
+    pending_edit: bool,
 }
 
 impl Output {
@@ -77,6 +80,8 @@ impl Output {
             selection_start: None,
             selection_end: None,
             is_selecting: false,
+            undo_stack: Vec::new(),
+            pending_edit: false,
         }
     }
 
@@ -225,7 +230,11 @@ impl Output {
     }
 
     pub(crate) fn has_selection(&self) -> bool {
-        self.selection_start.is_some() && self.selection_end.is_some()
+        if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
+            start != end
+        } else {
+            false
+        }
     }
 
     pub(crate) fn is_selecting(&self) -> bool {
@@ -280,18 +289,159 @@ impl Output {
         }
     }
 
+    pub(crate) fn cut_selection(&mut self) {
+        if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
+            self.push_undo();
+            self.copy_selection();
+            
+            // Remove the selected text
+            if start_row == end_row {
+                // Single line selection
+                let row = self.editor_rows.get_editor_row_mut(start_row);
+                let mut chars: Vec<char> = row.row_content.chars().collect();
+                chars.drain(start_col..end_col);
+                row.row_content = chars.into_iter().collect();
+                EditorRows::render_row(row);
+            } else {
+                // Multi-line selection
+                // First, handle the end row (remove from beginning to end_col)
+                let end_row_ref = self.editor_rows.get_editor_row_mut(end_row);
+                let mut end_chars: Vec<char> = end_row_ref.row_content.chars().collect();
+                end_chars.drain(..end_col);
+                end_row_ref.row_content = end_chars.into_iter().collect();
+                EditorRows::render_row(end_row_ref);
+                
+                // Handle the start row (remove from start_col to end)
+                let start_row_ref = self.editor_rows.get_editor_row_mut(start_row);
+                let mut start_chars: Vec<char> = start_row_ref.row_content.chars().collect();
+                start_chars.drain(start_col..);
+                start_row_ref.row_content = start_chars.into_iter().collect();
+                EditorRows::render_row(start_row_ref);
+                
+                // Remove all rows in between
+                let rows_to_remove = end_row - start_row - 1;
+                for _ in 0..rows_to_remove {
+                    self.editor_rows.row_contents.remove(start_row + 1);
+                }
+                
+                // Join the start and end rows if they're now adjacent
+                if start_row + 1 < self.editor_rows.number_of_rows() {
+                    let end_row_content = self.editor_rows.get_editor_row(start_row + 1).row_content.clone();
+                    let start_row_ref = self.editor_rows.get_editor_row_mut(start_row);
+                    start_row_ref.row_content.push_str(&end_row_content);
+                    EditorRows::render_row(start_row_ref);
+                    
+                    // Remove the end row since we joined it
+                    self.editor_rows.row_contents.remove(start_row + 1);
+                }
+            }
+            
+            self.clear_selection();
+            self.cursor_controller.cursor_y = start_row;
+            self.cursor_controller.cursor_x = start_col;
+            self.dirty += 1;
+            self.pending_edit = false;
+        }
+    }
+
     pub(crate) fn paste_clipboard(&mut self) {
         if !self.clipboard.is_empty() {
+            self.push_undo();
             let clipboard_content = self.clipboard.clone();
-            for ch in clipboard_content.chars() {
+            let mut chars = clipboard_content.chars().peekable();
+            
+            while let Some(ch) = chars.next() {
                 if ch == '\n' {
-                    self.insert_newline();
+                    self.insert_newline_without_undo();
                 } else {
-                    self.insert_char(ch);
+                    self.insert_char_without_undo(ch);
                 }
             }
             self.status_message.set_message(format!("Pasted {} characters", clipboard_content.len()));
+            self.pending_edit = false;
         }
+    }
+
+    // Helper methods that don't push undo (used by paste operation)
+    fn insert_char_without_undo(&mut self, ch: char) {
+        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
+            self.editor_rows
+                .insert_row(self.editor_rows.number_of_rows(), String::new());
+            self.dirty += 1;
+        }
+        self.editor_rows
+            .get_editor_row_mut(self.cursor_controller.cursor_y)
+            .insert_char(self.cursor_controller.cursor_x, ch);
+        if let Some(it) = self.syntax_highlight.as_ref() {
+            it.update_syntax(
+                self.cursor_controller.cursor_y,
+                &mut self.editor_rows.row_contents,
+            )
+        }
+        self.cursor_controller.cursor_x += 1;
+        self.dirty += 1;
+    }
+
+    fn insert_newline_without_undo(&mut self) {
+        if self.cursor_controller.cursor_x == 0 {
+            // If cursor is at the beginning, check previous line for indentation
+            let indent_level = if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
+                let previous_row = self.editor_rows.get_row(self.cursor_controller.cursor_y - 1);
+                self.get_indentation_level(previous_row)
+            } else {
+                0
+            };
+            
+            // Create new row with same indentation
+            let indent_spaces = " ".repeat(indent_level);
+            self.editor_rows
+                .insert_row(self.cursor_controller.cursor_y, indent_spaces);
+            self.cursor_controller.cursor_x = indent_level;
+        } else {
+            // Get the current row content and calculate indentation before any mutable operations
+            let current_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y);
+            let indent_level = if self.config.editor.auto_indent {
+                self.get_indentation_level(&current_row.row_content)
+            } else {
+                0
+            };
+            
+            let current_row = self
+                .editor_rows
+                .get_editor_row_mut(self.cursor_controller.cursor_y);
+            
+            // Use character-based substring operation for UTF-8 safety
+            let new_row_content = current_row.substring_by_chars(
+                self.cursor_controller.cursor_x,
+                current_row.char_count()
+            );
+            
+            // Truncate the current row at the cursor position
+            let truncated_content = current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
+            current_row.row_content = truncated_content;
+            EditorRows::render_row(current_row);
+            
+            // Create new line with proper indentation
+            let indent_spaces = " ".repeat(indent_level);
+            let mut new_line_content = indent_spaces;
+            new_line_content.push_str(&new_row_content);
+            
+            self.editor_rows
+                .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
+            if let Some(it) = self.syntax_highlight.as_ref() {
+                it.update_syntax(
+                    self.cursor_controller.cursor_y,
+                    &mut self.editor_rows.row_contents,
+                );
+                it.update_syntax(
+                    self.cursor_controller.cursor_y + 1,
+                    &mut self.editor_rows.row_contents,
+                )
+            }
+            self.cursor_controller.cursor_x = indent_level;
+        }
+        self.cursor_controller.cursor_y += 1;
+        self.dirty += 1;
     }
 
     pub(crate) fn is_position_selected(&self, row: usize, col: usize) -> bool {
@@ -332,6 +482,7 @@ impl Output {
     }
 
     pub(crate) fn delete_char(&mut self) {
+        self.push_undo();
         if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
             return;
         }
@@ -357,6 +508,7 @@ impl Output {
             );
         }
         self.dirty += 1;
+        self.pending_edit = false;
     }
 
     fn get_indentation_level(&self, row_content: &str) -> usize {
@@ -372,6 +524,10 @@ impl Output {
     }
 
     pub(crate) fn insert_newline(&mut self) {
+        if !self.pending_edit {
+            self.push_undo();
+            self.pending_edit = true;
+        }
         if self.cursor_controller.cursor_x == 0 {
             // If cursor is at the beginning, check previous line for indentation
             let indent_level = if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
@@ -434,6 +590,10 @@ impl Output {
     }
 
     pub(crate) fn insert_char(&mut self, ch: char) {
+        if !self.pending_edit {
+            self.push_undo();
+            self.pending_edit = true;
+        }
         if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
             self.editor_rows
                 .insert_row(self.editor_rows.number_of_rows(), String::new());
@@ -467,15 +627,15 @@ impl Output {
             self.editor_rows.number_of_rows()
         );
         let info_len = cmp::min(info.len(), self.win_size.0);
-        /* modify the following */
+        /* LINES AND COLUMNS */
         let line_info = format!(
-            "{} | {}/{}",
+            "{} | {}:{}",
             self.syntax_highlight
                 .as_ref()
                 .map(|highlight| highlight.file_type())
                 .unwrap_or("no ft"),
             self.cursor_controller.cursor_y + 1,
-            self.editor_rows.number_of_rows()
+            self.cursor_controller.cursor_x + 1
         );
         self.editor_contents.push_str(&info[..info_len]);
         for i in info_len..self.win_size.0 {
@@ -618,6 +778,7 @@ impl Output {
     pub(crate) fn move_cursor(&mut self, direction: KeyCode) {
         self.cursor_controller
             .move_cursor(direction, &self.editor_rows);
+        self.pending_edit = false;
     }
 
     pub(crate) fn refresh_screen(&mut self) -> crossterm::Result<()> {
@@ -639,6 +800,35 @@ impl Output {
             cursor::Show
         )?;
         self.editor_contents.flush()
+    }
+
+    // Undo stack methods
+    pub(crate) fn push_undo(&mut self) {
+        // Store a deep copy of the editor state
+        self.undo_stack.push((
+            self.editor_rows.row_contents.clone(),
+            self.cursor_controller,
+            self.dirty,
+        ));
+        // Limit undo stack size if desired
+        if self.undo_stack.len() > 100 {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    pub(crate) fn pop_undo(&mut self) {
+        if let Some((rows, cursor, dirty)) = self.undo_stack.pop() {
+            self.editor_rows.row_contents = rows;
+            self.cursor_controller = cursor;
+            self.dirty = dirty;
+            // Re-render all rows for syntax highlighting
+            if let Some(it) = self.syntax_highlight.as_ref() {
+                for i in 0..self.editor_rows.number_of_rows() {
+                    it.update_syntax(i, &mut self.editor_rows.row_contents);
+                }
+            }
+        }
+        self.pending_edit = false;
     }
 }
 

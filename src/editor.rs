@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::{cmp, env, fs, io};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+#[derive(Clone)]
 pub(crate) struct Row {
     pub(crate) row_content: String,
     pub(crate) render: String,
@@ -477,6 +478,20 @@ impl Editor {
                     KeyCode::Char(ch) => self.output.insert_char(ch),
                     _ => unreachable!(),
                 }
+            }
+            KeyEvent {
+                code: KeyCode::Char('x'),
+                modifiers: KeyModifiers::CONTROL,
+            } => {
+                if self.output.has_selection() {
+                    self.output.cut_selection();
+                }
+            }
+            KeyEvent {
+                code: KeyCode::Char('z'),
+                modifiers: KeyModifiers::CONTROL,
+            } => {
+                self.output.pop_undo();
             }
             _ => {}
         }
