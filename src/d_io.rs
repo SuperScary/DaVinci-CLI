@@ -633,7 +633,7 @@ impl Output {
             self.syntax_highlight
                 .as_ref()
                 .map(|highlight| highlight.file_type())
-                .unwrap_or("no ft"),
+                .unwrap_or("Detecting..."),
             self.cursor_controller.cursor_y + 1,
             self.cursor_controller.cursor_x + 1
         );
