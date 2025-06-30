@@ -1,18 +1,24 @@
+use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
 use crate::editor::{EditorContents, EditorRows, Row};
 use crate::event::KeyModifiers;
-use crate::highlighting::{CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight, JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight};
+use crate::highlighting::{
+    CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight,
+    JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight,
+};
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
-use crate::config::DaVinciConfig;
-use crate::{prompt, VERSION};
+use crate::{VERSION, prompt};
 use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::style::Color;
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, event, execute, queue, style, terminal};
-use crossterm::style::Color;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use std::time::Duration;
 use std::{cmp, io};
+use cli_clipboard::{ClipboardContext, ClipboardProvider};
+
+pub(crate) struct Reader;
 
 pub(crate) struct Output {
     pub(crate) win_size: (usize, usize),
@@ -35,9 +41,13 @@ pub(crate) struct Output {
 }
 
 impl Output {
+    /**
+     * Selects the appropriate syntax highlighting based on the file extension.
+     * Returns an Option containing a Boxed SyntaxHighlight trait object.
+     */
     pub(crate) fn select_syntax(extension: &str) -> Option<Box<dyn SyntaxHighlight>> {
         let list: Vec<Box<dyn SyntaxHighlight>> = vec![
-            Box::new(RustHighlight::new()), 
+            Box::new(RustHighlight::new()),
             Box::new(CHighlight::new()),
             Box::new(JavaHighlight::new()),
             Box::new(PythonHighlight::new()),
@@ -48,7 +58,7 @@ impl Output {
             Box::new(RHighlight::new()),
             Box::new(PHPHighlight::new()),
             Box::new(ObjectiveCHighlight::new()),
-            Box::new(SwiftHightlight::new()),
+            Box::new(SwiftHighlight::new()),
             Box::new(KotlinHighlight::new()),
             Box::new(DartHighlight::new()),
             Box::new(RubyHighlight::new()),*/
@@ -59,6 +69,11 @@ impl Output {
             .find(|it| it.extensions().contains(&extension))
     }
 
+    /**
+     * Creates a new Output instance with the given configuration.
+     * Initializes the terminal size, editor contents, cursor controller, editor rows,
+     * status message, and other necessary components.
+     */
     pub(crate) fn new(config: DaVinciConfig) -> Self {
         let win_size = terminal::size()
             .map(|(x, y)| (x as usize, y as usize - 2))
@@ -85,11 +100,17 @@ impl Output {
         }
     }
 
+    /**
+     * Clears the terminal screen and moves the cursor to the top-left corner.
+     */
     pub(crate) fn clear_screen() -> crossterm::Result<()> {
         execute!(stdout(), terminal::Clear(ClearType::All))?;
         execute!(stdout(), cursor::MoveTo(0, 0))
     }
 
+    /**
+     * Callback function for key codes.
+     */
     fn find_callback(output: &mut Output, keyword: &str, key_code: KeyCode) {
         if let Some((index, highlight)) = output.search_index.previous_highlight.take() {
             output.editor_rows.get_editor_row_mut(index).highlight = highlight;
@@ -146,32 +167,31 @@ impl Output {
                             let index = if matches!(dir, SearchDirection::Forward) {
                                 // Convert character index to byte index for safe slicing
                                 let start_char = output.search_index.x_index + 1;
-                                let start_byte = row.render
+                                let start_byte = row
+                                    .render
                                     .char_indices()
                                     .nth(start_char)
                                     .map(|(i, _)| i)
                                     .unwrap_or_else(|| row.render.len());
-                                
-                                row.render[start_byte..]
-                                    .find(&keyword)
-                                    .map(|index| {
-                                        // Convert back to character index
-                                        let byte_index = start_byte + index;
-                                        row.render[..byte_index].chars().count()
-                                    })
+
+                                row.render[start_byte..].find(&keyword).map(|index| {
+                                    // Convert back to character index
+                                    let byte_index = start_byte + index;
+                                    row.render[..byte_index].chars().count()
+                                })
                             } else {
                                 // Convert character index to byte index for safe slicing
-                                let end_byte = row.render
+                                let end_byte = row
+                                    .render
                                     .char_indices()
                                     .nth(output.search_index.x_index)
                                     .map(|(i, _)| i)
                                     .unwrap_or_else(|| row.render.len());
-                                
-                                row.render[..end_byte].rfind(&keyword)
-                                    .map(|byte_index| {
-                                        // Convert back to character index
-                                        row.render[..byte_index].chars().count()
-                                    })
+
+                                row.render[..end_byte].rfind(&keyword).map(|byte_index| {
+                                    // Convert back to character index
+                                    row.render[..byte_index].chars().count()
+                                })
                             };
                             if index.is_none() {
                                 break;
@@ -196,6 +216,9 @@ impl Output {
         }
     }
 
+    /**
+     * Finds a keyword in the editor content.
+     */
     pub(crate) fn find(&mut self) -> io::Result<()> {
         let cursor_controller = self.cursor_controller;
         if prompt!(
@@ -203,7 +226,7 @@ impl Output {
             "Search: {} (Use ESC / Arrows / Enter)",
             callback = Output::find_callback
         )
-            .is_none()
+        .is_none()
         {
             self.cursor_controller = cursor_controller
         }
@@ -213,13 +236,22 @@ impl Output {
     // Selection and clipboard methods
     pub(crate) fn start_selection(&mut self) {
         self.is_selecting = true;
-        self.selection_start = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
-        self.selection_end = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
+        self.selection_start = Some((
+            self.cursor_controller.cursor_y,
+            self.cursor_controller.cursor_x,
+        ));
+        self.selection_end = Some((
+            self.cursor_controller.cursor_y,
+            self.cursor_controller.cursor_x,
+        ));
     }
 
     pub(crate) fn update_selection(&mut self) {
         if self.is_selecting {
-            self.selection_end = Some((self.cursor_controller.cursor_y, self.cursor_controller.cursor_x));
+            self.selection_end = Some((
+                self.cursor_controller.cursor_y,
+                self.cursor_controller.cursor_x,
+            ));
         }
     }
 
@@ -257,7 +289,7 @@ impl Output {
     pub(crate) fn copy_selection(&mut self) {
         if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
             let mut selected_text = String::new();
-            
+
             if start_row == end_row {
                 // Single line selection
                 let row = self.editor_rows.get_editor_row(start_row);
@@ -277,15 +309,18 @@ impl Output {
                         // Middle lines: entire line
                         selected_text.push_str(&row.row_content);
                     }
-                    
+
                     if row_idx < end_row {
                         selected_text.push('\n');
                     }
                 }
             }
-            
+
+            let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
             self.clipboard = selected_text;
-            self.status_message.set_message(format!("Copied {} characters", self.clipboard.len()));
+            ctx.set_contents(self.clipboard.clone()).unwrap();
+            self.status_message
+                .set_message(format!("Copied {} characters", self.clipboard.len()));
         }
     }
 
@@ -293,7 +328,7 @@ impl Output {
         if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
             self.push_undo();
             self.copy_selection();
-            
+
             // Remove the selected text
             if start_row == end_row {
                 // Single line selection
@@ -310,32 +345,36 @@ impl Output {
                 end_chars.drain(..end_col);
                 end_row_ref.row_content = end_chars.into_iter().collect();
                 EditorRows::render_row(end_row_ref);
-                
+
                 // Handle the start row (remove from start_col to end)
                 let start_row_ref = self.editor_rows.get_editor_row_mut(start_row);
                 let mut start_chars: Vec<char> = start_row_ref.row_content.chars().collect();
                 start_chars.drain(start_col..);
                 start_row_ref.row_content = start_chars.into_iter().collect();
                 EditorRows::render_row(start_row_ref);
-                
+
                 // Remove all rows in between
                 let rows_to_remove = end_row - start_row - 1;
                 for _ in 0..rows_to_remove {
                     self.editor_rows.row_contents.remove(start_row + 1);
                 }
-                
+
                 // Join the start and end rows if they're now adjacent
                 if start_row + 1 < self.editor_rows.number_of_rows() {
-                    let end_row_content = self.editor_rows.get_editor_row(start_row + 1).row_content.clone();
+                    let end_row_content = self
+                        .editor_rows
+                        .get_editor_row(start_row + 1)
+                        .row_content
+                        .clone();
                     let start_row_ref = self.editor_rows.get_editor_row_mut(start_row);
                     start_row_ref.row_content.push_str(&end_row_content);
                     EditorRows::render_row(start_row_ref);
-                    
+
                     // Remove the end row since we joined it
                     self.editor_rows.row_contents.remove(start_row + 1);
                 }
             }
-            
+
             self.clear_selection();
             self.cursor_controller.cursor_y = start_row;
             self.cursor_controller.cursor_x = start_col;
@@ -349,7 +388,7 @@ impl Output {
             self.push_undo();
             let clipboard_content = self.clipboard.clone();
             let mut chars = clipboard_content.chars().peekable();
-            
+
             while let Some(ch) = chars.next() {
                 if ch == '\n' {
                     self.insert_newline_without_undo();
@@ -357,7 +396,8 @@ impl Output {
                     self.insert_char_without_undo(ch);
                 }
             }
-            self.status_message.set_message(format!("Pasted {} characters", clipboard_content.len()));
+            self.status_message
+                .set_message(format!("Pasted {} characters", clipboard_content.len()));
             self.pending_edit = false;
         }
     }
@@ -385,13 +425,16 @@ impl Output {
     fn insert_newline_without_undo(&mut self) {
         if self.cursor_controller.cursor_x == 0 {
             // If cursor is at the beginning, check previous line for indentation
-            let indent_level = if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
-                let previous_row = self.editor_rows.get_row(self.cursor_controller.cursor_y - 1);
-                self.get_indentation_level(previous_row)
-            } else {
-                0
-            };
-            
+            let indent_level =
+                if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
+                    let previous_row = self
+                        .editor_rows
+                        .get_row(self.cursor_controller.cursor_y - 1);
+                    self.get_indentation_level(previous_row)
+                } else {
+                    0
+                };
+
             // Create new row with same indentation
             let indent_spaces = " ".repeat(indent_level);
             self.editor_rows
@@ -399,33 +442,34 @@ impl Output {
             self.cursor_controller.cursor_x = indent_level;
         } else {
             // Get the current row content and calculate indentation before any mutable operations
-            let current_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y);
+            let current_row = self
+                .editor_rows
+                .get_editor_row(self.cursor_controller.cursor_y);
             let indent_level = if self.config.editor.auto_indent {
                 self.get_indentation_level(&current_row.row_content)
             } else {
                 0
             };
-            
+
             let current_row = self
                 .editor_rows
                 .get_editor_row_mut(self.cursor_controller.cursor_y);
-            
+
             // Use character-based substring operation for UTF-8 safety
-            let new_row_content = current_row.substring_by_chars(
-                self.cursor_controller.cursor_x,
-                current_row.char_count()
-            );
-            
+            let new_row_content = current_row
+                .substring_by_chars(self.cursor_controller.cursor_x, current_row.char_count());
+
             // Truncate the current row at the cursor position
-            let truncated_content = current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
+            let truncated_content =
+                current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
             current_row.row_content = truncated_content;
             EditorRows::render_row(current_row);
-            
+
             // Create new line with proper indentation
             let indent_spaces = " ".repeat(indent_level);
             let mut new_line_content = indent_spaces;
             new_line_content.push_str(&new_row_content);
-            
+
             self.editor_rows
                 .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
             if let Some(it) = self.syntax_highlight.as_ref() {
@@ -469,7 +513,7 @@ impl Output {
             self.editor_contents,
             terminal::Clear(ClearType::UntilNewLine)
         )
-            .unwrap();
+        .unwrap();
         if let Some(msg) = self.status_message.message() {
             let msg_chars: Vec<char> = msg.chars().collect();
             let truncated_msg = if msg_chars.len() > self.win_size.0 {
@@ -495,7 +539,9 @@ impl Output {
                 .delete_char(self.cursor_controller.cursor_x - 1);
             self.cursor_controller.cursor_x -= 1;
         } else {
-            let previous_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y - 1);
+            let previous_row = self
+                .editor_rows
+                .get_editor_row(self.cursor_controller.cursor_y - 1);
             self.cursor_controller.cursor_x = previous_row.char_count();
             self.editor_rows
                 .join_adjacent_rows(self.cursor_controller.cursor_y);
@@ -530,13 +576,16 @@ impl Output {
         }
         if self.cursor_controller.cursor_x == 0 {
             // If cursor is at the beginning, check previous line for indentation
-            let indent_level = if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
-                let previous_row = self.editor_rows.get_row(self.cursor_controller.cursor_y - 1);
-                self.get_indentation_level(previous_row)
-            } else {
-                0
-            };
-            
+            let indent_level =
+                if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
+                    let previous_row = self
+                        .editor_rows
+                        .get_row(self.cursor_controller.cursor_y - 1);
+                    self.get_indentation_level(previous_row)
+                } else {
+                    0
+                };
+
             // Create new row with same indentation
             let indent_spaces = " ".repeat(indent_level);
             self.editor_rows
@@ -544,33 +593,34 @@ impl Output {
             self.cursor_controller.cursor_x = indent_level;
         } else {
             // Get the current row content and calculate indentation before any mutable operations
-            let current_row = self.editor_rows.get_editor_row(self.cursor_controller.cursor_y);
+            let current_row = self
+                .editor_rows
+                .get_editor_row(self.cursor_controller.cursor_y);
             let indent_level = if self.config.editor.auto_indent {
                 self.get_indentation_level(&current_row.row_content)
             } else {
                 0
             };
-            
+
             let current_row = self
                 .editor_rows
                 .get_editor_row_mut(self.cursor_controller.cursor_y);
-            
+
             // Use character-based substring operation for UTF-8 safety
-            let new_row_content = current_row.substring_by_chars(
-                self.cursor_controller.cursor_x,
-                current_row.char_count()
-            );
-            
+            let new_row_content = current_row
+                .substring_by_chars(self.cursor_controller.cursor_x, current_row.char_count());
+
             // Truncate the current row at the cursor position
-            let truncated_content = current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
+            let truncated_content =
+                current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
             current_row.row_content = truncated_content;
             EditorRows::render_row(current_row);
-            
+
             // Create new line with proper indentation
             let indent_spaces = " ".repeat(indent_level);
             let mut new_line_content = indent_spaces;
             new_line_content.push_str(&new_row_content);
-            
+
             self.editor_rows
                 .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
             if let Some(it) = self.syntax_highlight.as_ref() {
@@ -660,7 +710,7 @@ impl Output {
             0
         };
         let content_width = screen_columns.saturating_sub(gutter_width);
-        
+
         for i in 0..screen_rows {
             let file_row = i + self.cursor_controller.row_offset;
             if file_row >= self.editor_rows.number_of_rows() {
@@ -692,33 +742,37 @@ impl Output {
                 let row = self.editor_rows.get_editor_row(file_row);
                 let render = &row.render;
                 let column_offset = self.cursor_controller.column_offset;
-                
+
                 // Use character-based operations for UTF-8 safety
                 let render_chars: Vec<char> = render.chars().collect();
-                let len = cmp::min(render_chars.len().saturating_sub(column_offset), content_width);
+                let len = cmp::min(
+                    render_chars.len().saturating_sub(column_offset),
+                    content_width,
+                );
                 let start = if len == 0 { 0 } else { column_offset };
                 let end = start + len;
-                
+
                 // Create the rendered string using character operations
                 let render = render_chars[start..end].iter().collect::<String>();
-                
+
                 // Draw line number in gutter
                 if self.config.editor.show_line_numbers {
                     let line_num = format!("{:>5} ", file_row + 1);
                     self.editor_contents.push_str(&line_num);
                 }
-                
+
                 // Draw the actual content with syntax highlighting
                 if self.config.syntax.enable_syntax_highlighting {
                     if let Some(syntax_highlight) = &self.syntax_highlight {
                         // Ensure highlight array has enough elements
-                        let highlight_slice = if start < row.highlight.len() && end <= row.highlight.len() {
-                            &row.highlight[start..end]
-                        } else {
-                            // Fallback to normal highlighting if indices are out of bounds
-                            &[]
-                        };
-                        
+                        let highlight_slice =
+                            if start < row.highlight.len() && end <= row.highlight.len() {
+                                &row.highlight[start..end]
+                            } else {
+                                // Fallback to normal highlighting if indices are out of bounds
+                                &[]
+                            };
+
                         // Apply selection highlighting over syntax highlighting
                         let mut final_highlights = highlight_slice.to_vec();
                         if self.has_selection() {
@@ -733,7 +787,7 @@ impl Output {
                                 }
                             }
                         }
-                        
+
                         syntax_highlight.color_row(
                             &render,
                             &final_highlights,
@@ -753,14 +807,18 @@ impl Output {
                             } else {
                                 Color::Reset
                             };
-                            
+
                             if current_color != color {
                                 current_color = color;
-                                let _ = queue!(self.editor_contents, style::SetForegroundColor(color));
+                                let _ =
+                                    queue!(self.editor_contents, style::SetForegroundColor(color));
                             }
                             self.editor_contents.push(c);
                         }
-                        let _ = queue!(self.editor_contents, style::SetForegroundColor(Color::Reset));
+                        let _ = queue!(
+                            self.editor_contents,
+                            style::SetForegroundColor(Color::Reset)
+                        );
                     } else {
                         self.editor_contents.push_str(&render);
                     }
@@ -770,7 +828,7 @@ impl Output {
                 self.editor_contents,
                 terminal::Clear(ClearType::UntilNewLine)
             )
-                .unwrap();
+            .unwrap();
             self.editor_contents.push_str("\r\n");
         }
     }
@@ -787,12 +845,14 @@ impl Output {
         } else {
             0
         };
-        self.cursor_controller.scroll(&self.editor_rows, gutter_width);
+        self.cursor_controller
+            .scroll(&self.editor_rows, gutter_width);
         queue!(self.editor_contents, cursor::Hide, cursor::MoveTo(0, 0))?;
         self.draw_rows();
         self.draw_status_bar();
         self.draw_message_bar();
-        let cursor_x = self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
+        let cursor_x =
+            self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
         let cursor_y = self.cursor_controller.cursor_y - self.cursor_controller.row_offset;
         queue!(
             self.editor_contents,
@@ -831,8 +891,6 @@ impl Output {
         self.pending_edit = false;
     }
 }
-
-pub(crate) struct Reader;
 
 impl Reader {
     pub(crate) fn read_key(&self) -> crossterm::Result<KeyEvent> {
