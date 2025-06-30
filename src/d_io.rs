@@ -339,7 +339,7 @@ impl Output {
                 EditorRows::render_row(row);
             } else {
                 // Multi-line selection
-                // First, handle the end row (remove from beginning to end_col)
+                // Handle the end row (remove from beginning to end_col)
                 let end_row_ref = self.editor_rows.get_editor_row_mut(end_row);
                 let mut end_chars: Vec<char> = end_row_ref.row_content.chars().collect();
                 end_chars.drain(..end_col);
