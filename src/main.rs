@@ -6,6 +6,7 @@ mod d_cursor;
 mod status;
 mod clipboard;
 mod screens;
+mod keybinds;
 
 use crate::config::DaVinciConfig;
 use crate::d_io::Output;

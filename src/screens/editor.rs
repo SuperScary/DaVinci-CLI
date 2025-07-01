@@ -2,6 +2,8 @@ use crate::d_io::Reader;
 use crate::highlighting::{HighlightType, SyntaxHighlight};
 use crate::{TAB_STOP, d_io, prompt};
 use crate::config::DaVinciConfig;
+use crate::keybinds::{KeybindManager, KeybindContext};
+use crate::keybinds::actions::ActionExecutor;
 use d_io::Output;
 use std::io::{ErrorKind, Write, stdout};
 use std::path::PathBuf;
@@ -300,6 +302,7 @@ pub(crate) struct Editor {
     output: Output,
     config: DaVinciConfig,
     quit_attempts: u8,
+    keybind_manager: KeybindManager,
 }
 
 impl Editor {
@@ -309,192 +312,147 @@ impl Editor {
             output: Output::new(config.clone()),
             config,
             quit_attempts: 0,
+            keybind_manager: KeybindManager::new(),
         }
     }
 
     fn process_keypress(&mut self) -> crossterm::Result<bool> {
-        match self.reader.read_key()? {
-            KeyEvent {
-                code: KeyCode::Char('q'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                if self.output.dirty > 0 && self.quit_attempts < self.config.behavior.quit_times {
-                    self.quit_attempts += 1;
-                    let remaining = self.config.behavior.quit_times - self.quit_attempts;
-                    self.output.status_message.set_message(format!(
-                        "WARNING!!! File has unsaved changes. Press Ctrl-Q {} more times to quit.",
-                        remaining
-                    ));
-                    return Ok(true);
-                }
-                return Ok(false);
-            }
-            KeyEvent {
-                code:
-                direction
-                @
-                (KeyCode::Up
-                | KeyCode::Down
-                | KeyCode::Left
-                | KeyCode::Right
-                | KeyCode::Home
-                | KeyCode::End),
-                modifiers: KeyModifiers::NONE,
-            } => self.output.move_cursor(direction),
-            KeyEvent {
-                code:
-                direction
-                @
-                (KeyCode::Up
-                | KeyCode::Down
-                | KeyCode::Left
-                | KeyCode::Right
-                | KeyCode::Home
-                | KeyCode::End),
-                modifiers: KeyModifiers::SHIFT,
-            } => {
-                // Start selection if not already selecting
-                if !self.output.is_selecting() {
-                    self.output.start_selection();
-                }
-                self.output.move_cursor(direction);
-                self.output.update_selection();
-            }
-            KeyEvent {
-                code: KeyCode::Char('c'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                if self.output.has_selection() {
-                    self.output.copy_selection();
-                }
-            }
-            KeyEvent {
-                code: KeyCode::Char('v'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                self.output.paste_clipboard();
-            }
-            KeyEvent {
-                code: val @ (KeyCode::PageUp | KeyCode::PageDown),
-                modifiers: KeyModifiers::NONE,
-            } => {
-                if matches!(val, KeyCode::PageUp) {
-                    self.output.cursor_controller.cursor_y =
-                        self.output.cursor_controller.row_offset
-                } else {
-                    self.output.cursor_controller.cursor_y = cmp::min(
-                        self.output.win_size.1 + self.output.cursor_controller.row_offset - 1,
-                        self.output.editor_rows.number_of_rows(),
-                    );
-                }
-                (0..self.output.win_size.1).for_each(|_| {
-                    self.output.move_cursor(if matches!(val, KeyCode::PageUp) {
-                        KeyCode::Up
-                    } else {
-                        KeyCode::Down
-                    });
-                })
-            }
-            KeyEvent {
-                code: KeyCode::Char('s'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                if matches!(self.output.editor_rows.filename, None) {
-                    let prompt = prompt!(&mut self.output, "Save as : {} (ESC to cancel)")
-                        .map(|it| it.into());
-                    if prompt.is_none() {
-                        self.output
-                            .status_message
-                            .set_message("Save Aborted".into());
+        let key_event = self.reader.read_key()?;
+        
+        // Define the contexts to check in order of priority
+        let contexts = [KeybindContext::Global, KeybindContext::Editor];
+        
+        // Try to find a keybind for this event
+        if let Some(keybind) = self.keybind_manager.find_keybind_in_contexts(&key_event, &contexts) {
+            // Get the action for this keybind
+            if let Some(action) = self.keybind_manager.get_action(&keybind.action) {
+                // Handle special cases that need custom logic
+                match action {
+                    crate::keybinds::actions::Action::Quit => {
+                        if self.output.dirty > 0 && self.quit_attempts < self.config.behavior.quit_times {
+                            self.quit_attempts += 1;
+                            let remaining = self.config.behavior.quit_times - self.quit_attempts;
+                            self.output.status_message.set_message(format!(
+                                "WARNING!!! File has unsaved changes. Press Ctrl-Q {} more times to quit.",
+                                remaining
+                            ));
+                            return Ok(true);
+                        }
+                        return Ok(false);
+                    }
+                    crate::keybinds::actions::Action::Save => {
+                        // Handle save with custom logic
+                        if matches!(self.output.editor_rows.filename, None) {
+                            let prompt = prompt!(&mut self.output, "Save as : {} (ESC to cancel)")
+                                .map(|it| it.into());
+                            if prompt.is_none() {
+                                self.output
+                                    .status_message
+                                    .set_message("Save Aborted".into());
+                                return Ok(true);
+                            }
+                            prompt
+                                .as_ref()
+                                .and_then(|path: &PathBuf| path.extension())
+                                .and_then(|ext| ext.to_str())
+                                .map(|ext| {
+                                    Output::select_syntax(ext).map(|syntax| {
+                                        let highlight = self.output.syntax_highlight.insert(syntax);
+                                        for i in 0..self.output.editor_rows.number_of_rows() {
+                                            highlight
+                                                .update_syntax(i, &mut self.output.editor_rows.row_contents)
+                                        }
+                                    })
+                                });
+                            self.output.editor_rows.filename = prompt;
+                        }
+                        self.output.editor_rows.save().map(|len| {
+                            self.output
+                                .status_message
+                                .set_message(format!("{} bytes written to disk", len));
+                            self.output.dirty = 0
+                        })?;
                         return Ok(true);
                     }
-                    /* add the following */
-                    prompt
-                        .as_ref()
-                        .and_then(|path: &PathBuf| path.extension())
-                        .and_then(|ext| ext.to_str())
-                        .map(|ext| {
-                            Output::select_syntax(ext).map(|syntax| {
-                                let highlight = self.output.syntax_highlight.insert(syntax);
-                                for i in 0..self.output.editor_rows.number_of_rows() {
-                                    highlight
-                                        .update_syntax(i, &mut self.output.editor_rows.row_contents)
-                                }
-                            })
-                        });
-
-                    self.output.editor_rows.filename = prompt
+                    crate::keybinds::actions::Action::MoveCursor(direction) => {
+                        // Handle movement with selection logic
+                        if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+                            if !self.output.is_selecting() {
+                                self.output.start_selection();
+                            }
+                            self.output.move_cursor(*direction);
+                            self.output.update_selection();
+                        } else {
+                            self.output.move_cursor(*direction);
+                        }
+                        return Ok(true);
+                    }
+                    crate::keybinds::actions::Action::InsertChar(ch) => {
+                        // Handle character insertion with selection clearing
+                        if self.output.is_selecting() {
+                            self.output.clear_selection();
+                        }
+                        if *ch == ' ' && key_event.code == KeyCode::Tab {
+                            // Handle tab insertion with soft tabs
+                            let tab_size = if self.config.editor.soft_tabs {
+                                self.config.editor.tab_size
+                            } else {
+                                1
+                            };
+                            for _ in 0..tab_size {
+                                self.output.insert_char(' ');
+                            }
+                        } else {
+                            self.output.insert_char(*ch);
+                        }
+                        return Ok(true);
+                    }
+                    crate::keybinds::actions::Action::InsertNewline => {
+                        if self.output.is_selecting() {
+                            self.output.clear_selection();
+                        }
+                        self.output.insert_newline();
+                        return Ok(true);
+                    }
+                    crate::keybinds::actions::Action::DeleteChar => {
+                        // Handle delete with cursor movement for Delete key
+                        if key_event.code == KeyCode::Delete {
+                            self.output.move_cursor(KeyCode::Right);
+                        }
+                        self.output.delete_char();
+                        return Ok(true);
+                    }
+                    _ => {
+                        // Execute the action using the action executor
+                        match ActionExecutor::execute(action, &mut self.output) {
+                            Ok(continue_running) => return Ok(continue_running),
+                            Err(e) => {
+                                self.output.status_message.set_message(format!("Error: {}", e));
+                                return Ok(true);
+                            }
+                        }
+                    }
                 }
-                self.output.editor_rows.save().map(|len| {
-                    self.output
-                        .status_message
-                        .set_message(format!("{} bytes written to disk", len));
-                    self.output.dirty = 0
-                })?;
             }
+        }
+        
+        // Handle unbound keys (character input)
+        match key_event {
             KeyEvent {
-                code: KeyCode::Char('f'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                self.output.find()?;
-            }
-            KeyEvent {
-                code: key @ (KeyCode::Backspace | KeyCode::Delete),
-                modifiers: KeyModifiers::NONE,
-            } => {
-                if matches!(key, KeyCode::Delete) {
-                    self.output.move_cursor(KeyCode::Right)
-                }
-                self.output.delete_char()
-            }
-            KeyEvent {
-                code: KeyCode::Enter,
-                modifiers: KeyModifiers::NONE,
-            } => {
-                if self.output.is_selecting() {
-                    self.output.clear_selection();
-                }
-                self.output.insert_newline()
-            }
-            KeyEvent {
-                code: code @ (KeyCode::Char(..) | KeyCode::Tab),
+                code: KeyCode::Char(ch),
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
             } => {
                 if self.output.is_selecting() {
                     self.output.clear_selection();
                 }
-                match code {
-                    KeyCode::Tab => {
-                        // Insert spaces based on configuration
-                        let tab_size = if self.config.editor.soft_tabs {
-                            self.config.editor.tab_size
-                        } else {
-                            1 // For hard tabs, just insert one character
-                        };
-                        for _ in 0..tab_size {
-                            self.output.insert_char(' ');
-                        }
-                    }
-                    KeyCode::Char(ch) => self.output.insert_char(ch),
-                    _ => unreachable!(),
-                }
+                self.output.insert_char(ch);
             }
-            KeyEvent {
-                code: KeyCode::Char('x'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                if self.output.has_selection() {
-                    self.output.cut_selection();
-                }
+            _ => {
+                // Unknown key combination
+                self.output.status_message.set_message(format!("Unknown key: {:?}", key_event));
             }
-            KeyEvent {
-                code: KeyCode::Char('z'),
-                modifiers: KeyModifiers::CONTROL,
-            } => {
-                self.output.pop_undo();
-            }
-            _ => {}
         }
+        
         // Reset quit attempts when any other key is pressed
         self.quit_attempts = 0;
         Ok(true)
