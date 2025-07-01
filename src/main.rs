@@ -5,6 +5,7 @@ mod search;
 mod d_io;
 mod d_cursor;
 mod status;
+mod clipboard;
 
 use crate::config::DaVinciConfig;
 use crate::d_io::Output;

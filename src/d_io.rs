@@ -1,3 +1,4 @@
+use crate::clipboard::Clipboard;
 use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
 use crate::editor::{EditorContents, EditorRows, Row};
@@ -8,15 +9,14 @@ use crate::highlighting::{
 };
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
-use crate::{VERSION, prompt};
+use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Color;
 use crossterm::terminal::ClearType;
 use crossterm::{cursor, event, execute, queue, style, terminal};
-use std::io::{Write, stdout};
+use std::io::{stdout, Write};
 use std::time::Duration;
 use std::{cmp, io};
-use cli_clipboard::{ClipboardContext, ClipboardProvider};
 
 pub(crate) struct Reader;
 
@@ -31,7 +31,7 @@ pub(crate) struct Output {
     pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
     pub(crate) config: DaVinciConfig,
     // Clipboard and selection state
-    clipboard: String,
+    clipboard: Clipboard,
     selection_start: Option<(usize, usize)>, // (row, col)
     selection_end: Option<(usize, usize)>,   // (row, col)
     is_selecting: bool,
@@ -91,7 +91,7 @@ impl Output {
             search_index: SearchIndex::new(),
             syntax_highlight,
             config,
-            clipboard: String::new(),
+            clipboard: Clipboard::new().init(),
             selection_start: None,
             selection_end: None,
             is_selecting: false,
@@ -316,11 +316,9 @@ impl Output {
                 }
             }
 
-            let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-            self.clipboard = selected_text;
-            ctx.set_contents(self.clipboard.clone()).unwrap();
+            self.clipboard.add(selected_text);
             self.status_message
-                .set_message(format!("Copied {} characters", self.clipboard.len()));
+                .set_message(format!("Copied {} characters", self.clipboard.get_top().unwrap().len()));
         }
     }
 
@@ -386,7 +384,7 @@ impl Output {
     pub(crate) fn paste_clipboard(&mut self) {
         if !self.clipboard.is_empty() {
             self.push_undo();
-            let clipboard_content = self.clipboard.clone();
+            let clipboard_content = self.clipboard.get_top().unwrap().clone();
             let mut chars = clipboard_content.chars().peekable();
 
             while let Some(ch) = chars.next() {
