@@ -64,12 +64,6 @@ impl Clipboard {
         self.stack.last()
     }
     
-    pub(crate) fn add(&mut self, text: String) {
-        if !text.is_empty() {
-            self.stack.push(text);
-        }
-    }
-    
     pub(crate) fn remove(&mut self, index: usize) -> Option<String> {
         if index < self.stack.len() {
             Some(self.stack.remove(index))
