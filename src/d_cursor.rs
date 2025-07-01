@@ -1,7 +1,7 @@
 use std::cmp;
 use std::cmp::Ordering;
 use crossterm::event::KeyCode;
-use crate::editor::{EditorRows, Row};
+use crate::screens::editor::{EditorRows, Row};
 use crate::TAB_STOP;
 
 #[derive(Copy, Clone)]
@@ -37,7 +37,7 @@ impl CursorController {
                     render_x + (TAB_STOP - 1) - (render_x % TAB_STOP) + 1
                 } else {
                     // Use the shared Unicode width calculation
-                    render_x + crate::editor::Row::char_width(c)
+                    render_x + crate::screens::editor::Row::char_width(c)
                 }
             })
     }

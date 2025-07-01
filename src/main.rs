@@ -1,20 +1,20 @@
 mod config;
 mod highlighting;
-mod editor;
 mod search;
 mod d_io;
 mod d_cursor;
 mod status;
 mod clipboard;
+mod screens;
 
 use crate::config::DaVinciConfig;
 use crate::d_io::Output;
 use crossterm::{event, terminal};
-use editor::EditorContents;
+use screens::editor::EditorContents;
 use std::cmp;
-use crate::editor::Editor;
+use crate::screens::ScreenManager;
 
-const VERSION: &str = "0.0.1";
+const VERSION: &str = "0.0.1-pre-alpha";
 const TAB_STOP: usize = 8;
 
 struct CleanUp;
@@ -89,14 +89,11 @@ fn main() -> crossterm::Result<()> {
     let _clean_up = CleanUp;
     
     // Load configuration
-    let config = match DaVinciConfig::load() {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Failed to load configuration: {}", e);
-            eprintln!("Using default configuration...");
-            DaVinciConfig::default()
-        }
-    };
+    let config = DaVinciConfig::load().unwrap_or_else(|e| {
+        eprintln!("Failed to load configuration: {}", e);
+        eprintln!("Using default configuration...");
+        DaVinciConfig::default()
+    });
     
     // Create default config file if it doesn't exist
     if let Err(e) = DaVinciConfig::create_default_config() {
@@ -104,7 +101,8 @@ fn main() -> crossterm::Result<()> {
     }
     
     terminal::enable_raw_mode()?;
-    let mut editor = Editor::new(config);
-    while editor.run()? {}
+    let mut screen_manager = ScreenManager::new();
+    screen_manager.show_editor_screen(config);
+    screen_manager.run_active();
     Ok(())
 }

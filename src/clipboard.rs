@@ -72,7 +72,7 @@ impl Clipboard {
         }
     }
     
-    pub(crate) fn get_all(&self) -> Vec<String> {
+    pub(crate) fn get_contents(&self) -> Vec<String> {
         self.stack.clone()
     }
     

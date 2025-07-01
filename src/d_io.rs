@@ -1,7 +1,7 @@
 use crate::clipboard::Clipboard;
 use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
-use crate::editor::{EditorContents, EditorRows, Row};
+use crate::screens::editor::{EditorContents, EditorRows, Row};
 use crate::event::KeyModifiers;
 use crate::highlighting::{
     CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight,

@@ -1,7 +1,7 @@
 use crate::cmp;
 use crossterm::queue;
 use crossterm::style::{Color, SetForegroundColor};
-use crate::editor::Row;
+use crate::screens::editor::Row;
 use crate::{EditorContents};
 
 #[derive(Copy, Clone)]
