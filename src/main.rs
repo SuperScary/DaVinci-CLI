@@ -15,7 +15,7 @@ use screens::editor::EditorContents;
 use std::cmp;
 use crate::screens::ScreenManager;
 
-const VERSION: &str = "0.0.1-pre-alpha";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TAB_STOP: usize = 8;
 
 struct CleanUp;

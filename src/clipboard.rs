@@ -1,4 +1,6 @@
+use std::sync::Mutex;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
+use once_cell::sync::Lazy;
 
 pub(crate) struct Clipboard {
     stack: Vec<String>,
@@ -7,7 +9,15 @@ pub(crate) struct Clipboard {
 
 impl Clipboard {
     pub(crate) fn new() -> Self {
-        Clipboard { stack: Vec::new(), ctx: ClipboardContext::new().unwrap() }
+        //Clipboard { stack: Vec::new(), ctx: ClipboardContext::new().unwrap() }
+        let mut cb = Clipboard {
+            stack: Vec::new(),
+            ctx: ClipboardContext::new().unwrap()
+        };
+        if let Ok(contents) = cb.ctx.get_contents() {
+            cb.stack.push(contents);
+        }
+        cb
     }
     
     /// Initialize the clipboard with the current clipboard contents if they exist.
@@ -80,3 +90,5 @@ impl Clipboard {
         self.stack.is_empty()
     }
 }
+
+pub static CLIPBOARD: Lazy<Mutex<Clipboard>> = Lazy::new(|| Mutex::new(Clipboard::new().init()));

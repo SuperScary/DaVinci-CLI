@@ -1,3 +1,4 @@
+use std::fmt::format;
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -57,7 +58,7 @@ impl Default for DaVinciConfig {
             display: DisplayConfig {
                 theme: "default".to_string(),
                 status_bar_style: "reverse".to_string(),
-                welcome_message: "DaVinci CLI --- Version {}".to_string(),
+                welcome_message: "DaVinci CLI --- v{}".to_string(),
                 show_file_info: true,
                 show_syntax_info: true,
             },

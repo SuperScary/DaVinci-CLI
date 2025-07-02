@@ -1,11 +1,11 @@
-use crate::clipboard::Clipboard;
+use crate::clipboard::{Clipboard, CLIPBOARD};
 use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
 use crate::screens::editor::{EditorContents, EditorRows, Row};
 use crate::event::KeyModifiers;
 use crate::highlighting::{
     CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight,
-    JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight,
+    JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight, TOMLHighlight,
 };
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
@@ -31,7 +31,7 @@ pub(crate) struct Output {
     pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
     pub(crate) config: DaVinciConfig,
     // Clipboard and selection state
-    clipboard: Clipboard,
+    //clipboard: Clipboard,
     selection_start: Option<(usize, usize)>, // (row, col)
     selection_end: Option<(usize, usize)>,   // (row, col)
     is_selecting: bool,
@@ -64,6 +64,7 @@ impl Output {
             Box::new(RubyHighlight::new()),*/
             Box::new(HTMLHighlight::new()),
             Box::new(CSSHighlight::new()),
+            Box::new(TOMLHighlight::new()),
         ];
         list.into_iter()
             .find(|it| it.extensions().contains(&extension))
@@ -91,7 +92,7 @@ impl Output {
             search_index: SearchIndex::new(),
             syntax_highlight,
             config,
-            clipboard: Clipboard::new().init(),
+            //clipboard: CLIPBOARD.lock().unwrap(), //Clipboard::new().init(),
             selection_start: None,
             selection_end: None,
             is_selecting: false,
@@ -316,9 +317,9 @@ impl Output {
                 }
             }
 
-            self.clipboard.add(selected_text);
+            CLIPBOARD.lock().unwrap().add(selected_text);
             self.status_message
-                .set_message(format!("Copied {} characters", self.clipboard.get_top().unwrap().len()));
+                .set_message(format!("Copied {} characters", CLIPBOARD.lock().unwrap().get_top().unwrap().len()));
         }
     }
 
@@ -382,9 +383,9 @@ impl Output {
     }
 
     pub(crate) fn paste_clipboard(&mut self) {
-        if !self.clipboard.is_empty() {
+        if !CLIPBOARD.lock().unwrap().is_empty() {
             self.push_undo();
-            let clipboard_content = self.clipboard.get_top().unwrap().clone();
+            let clipboard_content = CLIPBOARD.lock().unwrap().get_top().unwrap().clone();
             let mut chars = clipboard_content.chars().peekable();
 
             while let Some(ch) = chars.next() {

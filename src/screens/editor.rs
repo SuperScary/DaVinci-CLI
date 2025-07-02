@@ -1,14 +1,14 @@
+use crate::config::DaVinciConfig;
 use crate::d_io::Reader;
 use crate::highlighting::{HighlightType, SyntaxHighlight};
-use crate::{TAB_STOP, d_io, prompt};
-use crate::config::DaVinciConfig;
-use crate::keybinds::{KeybindManager, KeybindContext};
 use crate::keybinds::actions::ActionExecutor;
-use d_io::Output;
-use std::io::{ErrorKind, Write, stdout};
-use std::path::PathBuf;
-use std::{cmp, env, fs, io};
+use crate::keybinds::{KeybindContext, KeybindManager};
+use crate::{d_io, prompt, TAB_STOP};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use d_io::Output;
+use std::io::{stdout, ErrorKind, Write};
+use std::path::PathBuf;
+use std::{env, fs, io};
 
 #[derive(Clone)]
 pub(crate) struct Row {
@@ -61,7 +61,7 @@ impl Row {
                 (ch as u32 >= 0x30A0 && ch as u32 <= 0x30FF) || // Katakana
                 (ch as u32 >= 0x3100 && ch as u32 <= 0x312F) || // Bopomofo
                 (ch as u32 >= 0x3130 && ch as u32 <= 0x318F) || // Hangul Compatibility Jamo
-                (ch as u32 >= 0x3190 && ch as u32 <= 0x319F) || // Kanbun
+                (ch as u32 >= 0x3190 && ch as u32 <= 0x319F) || // Kanban
                 (ch as u32 >= 0x31A0 && ch as u32 <= 0x31BF) || // Bopomofo Extended
                 (ch as u32 >= 0x31C0 && ch as u32 <= 0x31EF) || // CJK Strokes
                 (ch as u32 >= 0x31F0 && ch as u32 <= 0x31FF) || // Katakana Phonetic Extensions
@@ -77,7 +77,7 @@ impl Row {
                 (ch as u32 >= 0xFE30 && ch as u32 <= 0xFE4F) || // CJK Compatibility Forms
                 (ch as u32 >= 0xFF00 && ch as u32 <= 0xFFEF) || // Halfwidth and Fullwidth Forms
                 (ch as u32 >= 0x1B000 && ch as u32 <= 0x1B0FF) || // Kana Supplement
-                (ch as u32 >= 0x1D300 && ch as u32 <= 0x1D35F) || // Tai Xuan Jing Symbols
+                (ch as u32 >= 0x1D300 && ch as u32 <= 0x1D35F) || // Tai Xian Jing Symbols
                 (ch as u32 >= 0x1F000 && ch as u32 <= 0x1F02F) || // Mahjong Tiles
                 (ch as u32 >= 0x1F030 && ch as u32 <= 0x1F09F) || // Domino Tiles
                 (ch as u32 >= 0x1F0A0 && ch as u32 <= 0x1F0FF) || // Playing Cards
@@ -327,7 +327,7 @@ impl Editor {
             // Get the action for this keybind
             if let Some(action) = self.keybind_manager.get_action(&keybind.action) {
                 // Handle special cases that need custom logic
-                match action {
+                return match action {
                     crate::keybinds::actions::Action::Quit => {
                         if self.output.dirty > 0 && self.quit_attempts < self.config.behavior.quit_times {
                             self.quit_attempts += 1;
@@ -338,7 +338,7 @@ impl Editor {
                             ));
                             return Ok(true);
                         }
-                        return Ok(false);
+                        Ok(false)
                     }
                     crate::keybinds::actions::Action::Save => {
                         // Handle save with custom logic
@@ -372,7 +372,7 @@ impl Editor {
                                 .set_message(format!("{} bytes written to disk", len));
                             self.output.dirty = 0
                         })?;
-                        return Ok(true);
+                        Ok(true)
                     }
                     crate::keybinds::actions::Action::MoveCursor(direction) => {
                         // Handle movement with selection logic
@@ -385,7 +385,7 @@ impl Editor {
                         } else {
                             self.output.move_cursor(*direction);
                         }
-                        return Ok(true);
+                        Ok(true)
                     }
                     crate::keybinds::actions::Action::InsertChar(ch) => {
                         // Handle character insertion with selection clearing
@@ -405,14 +405,14 @@ impl Editor {
                         } else {
                             self.output.insert_char(*ch);
                         }
-                        return Ok(true);
+                        Ok(true)
                     }
                     crate::keybinds::actions::Action::InsertNewline => {
                         if self.output.is_selecting() {
                             self.output.clear_selection();
                         }
                         self.output.insert_newline();
-                        return Ok(true);
+                        Ok(true)
                     }
                     crate::keybinds::actions::Action::DeleteChar => {
                         // Handle delete with cursor movement for Delete key
@@ -420,15 +420,15 @@ impl Editor {
                             self.output.move_cursor(KeyCode::Right);
                         }
                         self.output.delete_char();
-                        return Ok(true);
+                        Ok(true)
                     }
                     _ => {
                         // Execute the action using the action executor
                         match ActionExecutor::execute(action, &mut self.output) {
-                            Ok(continue_running) => return Ok(continue_running),
+                            Ok(continue_running) => Ok(continue_running),
                             Err(e) => {
                                 self.output.status_message.set_message(format!("Error: {}", e));
-                                return Ok(true);
+                                Ok(true)
                             }
                         }
                     }
@@ -449,7 +449,7 @@ impl Editor {
             }
             _ => {
                 // Unknown key combination
-                self.output.status_message.set_message(format!("Unknown key: {:?}", key_event));
+                //self.output.status_message.set_message(format!("Unknown key: {:?}", key_event));
             }
         }
         

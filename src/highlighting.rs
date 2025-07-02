@@ -236,7 +236,7 @@ macro_rules! syntax_struct {
 syntax_struct! {
     struct RustHighlight {
         extensions:["rs"],
-        file_type:"rust",
+        file_type:"Rust",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -255,7 +255,7 @@ syntax_struct! {
 syntax_struct! {
     struct CHighlight {
         extensions:["c","h"],
-        file_type:"c",
+        file_type:"C",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -273,7 +273,7 @@ syntax_struct! {
 syntax_struct! {
     struct JavaHighlight {
         extensions:["java"],
-        file_type:"java",
+        file_type:"Java",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -294,7 +294,7 @@ syntax_struct! {
 syntax_struct! {
     struct PythonHighlight {
         extensions:["py"],
-        file_type:"python",
+        file_type:"Python",
         comment_start:"#",
         keywords : {
             [Color::Yellow;
@@ -312,7 +312,7 @@ syntax_struct! {
 syntax_struct! {
     struct GoHighlight {
         extensions:["go", "mod"],
-        file_type:"go",
+        file_type:"Go",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -329,7 +329,7 @@ syntax_struct! {
 syntax_struct! {
     struct JavaScriptHighlight {
         extensions:["js","jsx"],
-        file_type:"javascript",
+        file_type:"JavaScript",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -347,7 +347,7 @@ syntax_struct! {
 syntax_struct! {
     struct TypeScriptHighlight {
         extensions:["ts","tsx"],
-        file_type:"typescript",
+        file_type:"TypeScript",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -390,7 +390,7 @@ syntax_struct! {
 syntax_struct! {
     struct RHighlight {
         extensions:["r"],
-        file_type:"r",
+        file_type:"R",
         comment_start:"#",
         keywords : {
             [Color::Yellow;
@@ -407,7 +407,7 @@ syntax_struct! {
 syntax_struct! {
     struct PHPHighlight {
         extensions:["php"],
-        file_type:"php",
+        file_type:"PHP",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -431,7 +431,7 @@ syntax_struct! {
 syntax_struct! {
     struct ObjectiveCHighlight {
         extensions:["m","mm"],
-        file_type:"objective-c",
+        file_type:"OBJ-C",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -450,7 +450,7 @@ syntax_struct! {
 syntax_struct! {
     struct SwiftHightlight {
         extensions:["swift"],
-        file_type:"swift",
+        file_type:"Swift",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -468,7 +468,7 @@ syntax_struct! {
 syntax_struct! {
     struct KotlinHighlight {
         extensions:["kt","kts"],
-        file_type:"kotlin",
+        file_type:"Kotlin",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -486,7 +486,7 @@ syntax_struct! {
 syntax_struct! {
     struct DartHighlight {
         extensions:["dart"],
-        file_type:"dart",
+        file_type:"Dart",
         comment_start:"//",
         keywords : {
             [Color::Yellow;
@@ -506,7 +506,7 @@ syntax_struct! {
 syntax_struct! {
     struct RubyHighlight {
         extensions:["rb"],
-        file_type:"ruby",
+        file_type:"Ruby",
         comment_start:"#",
         keywords : {
             [Color::Yellow;
@@ -525,7 +525,7 @@ syntax_struct! {
 syntax_struct! {
     struct HTMLHighlight {
         extensions:["html","htm"],
-        file_type:"html",
+        file_type:"HTML",
         comment_start:"<!--",
         keywords : {
             [Color::Yellow;
@@ -542,7 +542,7 @@ syntax_struct! {
 syntax_struct! {
     struct CSSHighlight {
         extensions:["css"],
-        file_type:"css",
+        file_type:"CSS",
         comment_start:"/*",
         keywords : {
             [Color::Yellow;
@@ -552,5 +552,20 @@ syntax_struct! {
             [Color::Magenta; ]
         },
         multiline_comment: Some(("/*", "*/"))
+    }
+}
+
+syntax_struct! {
+    struct TOMLHighlight {
+        extensions:["toml"],
+        file_type:"TOML",
+        comment_start:"#",
+        keywords : {
+            [Color::Yellow; 
+                "true", "false", "null", "nil"
+            ],
+            [Color::Magenta; ]
+        },
+        multiline_comment: Some(("#", "#"))
     }
 }
