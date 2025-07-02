@@ -661,19 +661,19 @@ impl Output {
         self.dirty += 1;
     }
 
+    /// TODO: Should probably move this to a separate trait or module.
     fn draw_status_bar(&mut self) {
         self.editor_contents
             .push_str(&style::Attribute::Reverse.to_string());
         let info = format!(
-            "{} {} -- {} lines",
+            "{} {}",
             self.editor_rows
                 .filename
                 .as_ref()
                 .and_then(|path| path.file_name())
                 .and_then(|name| name.to_str())
                 .unwrap_or("[No Name]"),
-            if self.dirty > 0 { "(modified)" } else { "" },
-            self.editor_rows.number_of_rows()
+            if self.dirty > 0 { "(modified)" } else { "" }
         );
         let info_len = cmp::min(info.len(), self.win_size.0);
         /* LINES AND COLUMNS */

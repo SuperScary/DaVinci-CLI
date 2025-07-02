@@ -1,4 +1,3 @@
-use std::fmt::format;
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

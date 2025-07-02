@@ -253,7 +253,7 @@ impl ActionExecutor {
                 }
                 Ok(true)
             }
-            Action::Custom(name, params) => {
+            Action::Custom(name, _params) => {
                 // Handle custom actions
                 Err(format!("Custom action '{}' not implemented", name))
             }
