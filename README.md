@@ -2,20 +2,20 @@
 
 ![Ninja Icon](icon.ico)
 
-*A modern, lightweight terminal text editor designed for the 21st century*
+*A stealthy, lightning-fast terminal text editor for modern developers*
 
 ## Overview
 
-Ninja is a sophisticated terminal-based text editor written in Rust, designed to bridge the gap between the power of traditional editors like Vim and Emacs, and the simplicity of modern text editors. Named after the legendary polymath Leonardo da Vinci, this editor embodies the spirit of innovation and versatility.
+Ninja is a sophisticated terminal-based text editor written in Rust, designed to be as swift and precise as its namesake. Like a true ninja, it moves silently through your codebase, striking with precision when you need to edit, and disappearing when you're done.
 
-Unlike its predecessors, Ninja offers an intuitive learning curve while maintaining the efficiency and power that experienced developers expect. It's built with modern development workflows in mind, featuring syntax highlighting, intelligent search, clipboard integration, and a highly configurable interface.
+Built for developers who value speed, efficiency, and power, Ninja combines the raw performance of Rust with an intuitive interface that gets out of your way. It's the editor that lets you focus on what matters most - your code.
 
 ## Key Features
 
-### **Modern Design Philosophy**
-- **Intuitive Interface**: Clean, uncluttered design that doesn't overwhelm new users
-- **Progressive Disclosure**: Advanced features are available but don't interfere with basic operations
-- **Consistent Behavior**: Predictable keybindings and operations across all modes
+### **Stealth Mode**
+- **Lightning Fast**: Instant startup and near-instantaneous operations
+- **Silent Operation**: No bloat, no distractions, just pure editing power
+- **Precision Tools**: Every feature designed for maximum efficiency
 
 ### **Core Editor Features**
 - **Syntax Highlighting**: Automatic language detection with customizable themes
@@ -171,7 +171,12 @@ export NINJA_DISPLAY_THEME=dark
 Ninja/
 ├── src/
 │   ├── main.rs              # Application entry point
+│   ├── lib.rs               # Library crate definitions
 │   ├── config.rs            # Configuration management
+│   ├── modules/             # UI component modules
+│   │   ├── mod.rs           # Module declarations
+│   │   ├── statusbar.rs     # Status bar component
+│   │   └── messagebar.rs    # Message bar component
 │   ├── screens/             # Different editor screens
 │   │   ├── editor.rs        # Main editor functionality
 │   │   ├── clipboard.rs     # Clipboard management
@@ -219,7 +224,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
 
 ## Acknowledgments
 
@@ -259,4 +264,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-*Built with ❤️* 
+*Built with the precision of a ninja* 🥷 
