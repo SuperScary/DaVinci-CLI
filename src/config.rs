@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DaVinciConfig {
+pub(crate) struct NinjaConfig {
     pub(crate) editor: EditorConfig,
     pub(crate) display: DisplayConfig,
     pub(crate) behavior: BehaviorConfig,
@@ -44,7 +44,7 @@ pub(crate) struct SyntaxConfig {
     pub(crate) auto_detect_file_type: bool,
 }
 
-impl Default for DaVinciConfig {
+impl Default for NinjaConfig {
     fn default() -> Self {
         Self {
             editor: EditorConfig {
@@ -57,7 +57,7 @@ impl Default for DaVinciConfig {
             display: DisplayConfig {
                 theme: "default".to_string(),
                 status_bar_style: "reverse".to_string(),
-                welcome_message: "DaVinci CLI --- v{}".to_string(),
+                welcome_message: "Ninja --- v{}".to_string(),
                 show_file_info: true,
                 show_syntax_info: true,
             },
@@ -77,7 +77,7 @@ impl Default for DaVinciConfig {
     }
 }
 
-impl DaVinciConfig {
+impl NinjaConfig {
     pub(crate) fn load() -> Result<Self, ConfigError> {
         let config_path = Self::get_config_path();
         
@@ -89,8 +89,8 @@ impl DaVinciConfig {
             ))
             // Add config file if it exists
             .add_source(File::from(config_path).required(false))
-            // Add environment variables with prefix "DAVINCI_"
-            .add_source(Environment::with_prefix("DAVINCI").separator("_"))
+            // Add environment variables with prefix "NINJA_"
+            .add_source(Environment::with_prefix("NINJA").separator("_"))
             .build()?;
 
         config.try_deserialize()
@@ -98,7 +98,7 @@ impl DaVinciConfig {
 
     pub(crate) fn get_config_path() -> PathBuf {
         let mut config_path = if let Some(home) = dirs::home_dir() {
-            home.join(".config").join("davinci")
+            home.join(".config").join("ninja")
         } else {
             PathBuf::from(".")
         };
@@ -124,8 +124,8 @@ impl DaVinciConfig {
     }
 
     fn default_config_toml() -> String {
-        r#"# DaVinci CLI Configuration File
-# This file allows you to customize how DaVinci operates, interacts, and looks
+        r#"# Ninja Configuration File
+# This file allows you to customize how Ninja operates, interacts, and looks
 
 [editor]
 # Number of spaces for indentation
@@ -145,7 +145,7 @@ theme = "default"
 # Style for the status bar ("reverse", "bold", etc.)
 status_bar_style = "reverse"
 # Welcome message shown when no file is open
-welcome_message = "DaVinci CLI --- Version {}"
+welcome_message = "Ninja --- Version {}"
 # Show file information in status bar
 show_file_info = true
 # Show syntax highlighting information in status bar

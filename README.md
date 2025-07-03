@@ -1,14 +1,14 @@
-# DaVinci CLI
+# Ninja
 
-![DaVinci CLI Icon](icon.ico)
+![Ninja Icon](icon.ico)
 
 *A modern, lightweight terminal text editor designed for the 21st century*
 
 ## Overview
 
-DaVinci CLI is a sophisticated terminal-based text editor written in Rust, designed to bridge the gap between the power of traditional editors like Vim and Emacs, and the simplicity of modern text editors. Named after the legendary polymath Leonardo da Vinci, this editor embodies the spirit of innovation and versatility.
+Ninja is a sophisticated terminal-based text editor written in Rust, designed to bridge the gap between the power of traditional editors like Vim and Emacs, and the simplicity of modern text editors. Named after the legendary polymath Leonardo da Vinci, this editor embodies the spirit of innovation and versatility.
 
-Unlike its predecessors, DaVinci CLI offers an intuitive learning curve while maintaining the efficiency and power that experienced developers expect. It's built with modern development workflows in mind, featuring syntax highlighting, intelligent search, clipboard integration, and a highly configurable interface.
+Unlike its predecessors, Ninja offers an intuitive learning curve while maintaining the efficiency and power that experienced developers expect. It's built with modern development workflows in mind, featuring syntax highlighting, intelligent search, clipboard integration, and a highly configurable interface.
 
 ## Key Features
 
@@ -39,7 +39,7 @@ Unlike its predecessors, DaVinci CLI offers an intuitive learning curve while ma
 ## Comparison with Traditional Editors
 
 ### vs. Vim
-| Feature | Vim | DaVinci CLI |
+| Feature | Vim | Ninja |
 |---------|-----|-------------|
 | **Learning Curve** | Steep (modal editing) | Gentle (intuitive shortcuts) |
 | **Configuration** | Vimscript (complex) | TOML (simple, readable) |
@@ -47,14 +47,14 @@ Unlike its predecessors, DaVinci CLI offers an intuitive learning curve while ma
 | **Cross-platform** | Good | Excellent |
 | **Performance** | Excellent | Excellent (Rust) |
 
-**Why choose DaVinci over Vim?**
+**Why choose Ninja over Vim?**
 - No need to learn modal editing modes
 - Modern configuration format that's easier to understand
 - Built-in features that would require multiple Vim plugins
 - More intuitive for developers coming from modern IDEs
 
 ### vs. Emacs
-| Feature | Emacs | DaVinci CLI |
+| Feature | Emacs | Ninja |
 |---------|-------|-------------|
 | **Resource Usage** | High (full Lisp environment) | Low (lightweight Rust binary) |
 | **Startup Time** | Slow | Instant |
@@ -62,7 +62,7 @@ Unlike its predecessors, DaVinci CLI offers an intuitive learning curve while ma
 | **Learning Curve** | Very steep | Moderate |
 | **Memory Footprint** | Large | Minimal |
 
-**Why choose DaVinci over Emacs?**
+**Why choose Ninja over Emacs?**
 - Much faster startup and lower resource usage
 - Simpler configuration without learning a new language
 - Focused on text editing rather than being an entire operating system
@@ -78,8 +78,8 @@ Unlike its predecessors, DaVinci CLI offers an intuitive learning curve while ma
 
 #### From Source
 ```bash
-git clone https://github.com/SuperScary/DaVinci-CLI.git
-cd DaVinci-CLI
+git clone https://github.com/SuperScary/Ninja.git
+cd Ninja
 cargo build --release
 ```
 
@@ -91,10 +91,10 @@ cargo build --release
 #### Opening Files
 ```bash
 # Open a specific file
-davinci filename.txt
+ninja filename.txt
 
-# Open DaVinci without a file (creates new document)
-davinci
+# Open Ninja without a file (creates new document)
+ninja
 ```
 
 #### Essential Commands
@@ -109,7 +109,7 @@ davinci
 
 ## Configuration
 
-DaVinci CLI uses a TOML configuration file located at `~/.config/davinci/config.toml`. The editor automatically creates a default configuration file on first run.
+Ninja uses a TOML configuration file located at `~/.config/ninja/config.toml`. The editor automatically creates a default configuration file on first run.
 
 ### Example Configuration
 ```toml
@@ -123,7 +123,7 @@ gutter_width = 6
 [display]
 theme = "default"
 status_bar_style = "reverse"
-welcome_message = "DaVinci CLI --- Version {}"
+welcome_message = "Ninja --- Version {}"
 show_file_info = true
 show_syntax_info = true
 
@@ -141,10 +141,10 @@ auto_detect_file_type = true
 ```
 
 ### Environment Variables
-You can override configuration values using environment variables with the `DAVINCI_` prefix:
+You can override configuration values using environment variables with the `NINJA_` prefix:
 ```bash
-export DAVINCI_EDITOR_TAB_SIZE=2
-export DAVINCI_DISPLAY_THEME=dark
+export NINJA_EDITOR_TAB_SIZE=2
+export NINJA_DISPLAY_THEME=dark
 ```
 
 ## Use Cases
@@ -168,7 +168,7 @@ export DAVINCI_DISPLAY_THEME=dark
 
 ### Project Structure
 ```
-DaVinci-CLI/
+Ninja/
 ├── src/
 │   ├── main.rs              # Application entry point
 │   ├── config.rs            # Configuration management
@@ -253,9 +253,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/SuperScary/DaVinci-CLI/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/SuperScary/DaVinci-CLI/discussions)
-- **Documentation**: [Wiki](https://github.com/SuperScary/DaVinci-CLI/wiki)
+- **Issues**: [GitHub Issues](https://github.com/SuperScary/Ninja/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/SuperScary/Ninja/discussions)
+- **Documentation**: [Wiki](https://github.com/SuperScary/Ninja/wiki)
 
 ---
 

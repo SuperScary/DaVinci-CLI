@@ -1,4 +1,4 @@
-use crate::config::DaVinciConfig;
+use crate::config::NinjaConfig;
 use crate::d_io::Reader;
 use crate::highlighting::{HighlightType, SyntaxHighlight};
 use crate::keybinds::actions::ActionExecutor;
@@ -300,13 +300,13 @@ impl Write for EditorContents {
 pub(crate) struct Editor {
     reader: Reader,
     output: Output,
-    config: DaVinciConfig,
+    config: NinjaConfig,
     quit_attempts: u8,
     keybind_manager: KeybindManager,
 }
 
 impl Editor {
-    pub(crate) fn new(config: DaVinciConfig) -> Self {
+    pub(crate) fn new(config: NinjaConfig) -> Self {
         Self {
             reader: Reader,
             output: Output::new(config.clone()),

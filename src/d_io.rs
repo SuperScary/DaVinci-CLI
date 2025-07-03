@@ -1,5 +1,5 @@
 use crate::clipboard::CLIPBOARD;
-use crate::config::DaVinciConfig;
+use crate::config::NinjaConfig;
 use crate::d_cursor::CursorController;
 use crate::screens::editor::{EditorContents, EditorRows, Row};
 use crossterm::event::KeyModifiers;
@@ -31,7 +31,7 @@ pub(crate) struct Output {
     pub(crate) dirty: u64,
     search_index: SearchIndex,
     pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
-    pub(crate) config: DaVinciConfig,
+    pub(crate) config: NinjaConfig,
     // Clipboard and selection state
     //clipboard: Clipboard,
     selection_start: Option<(usize, usize)>, // (row, col)
@@ -77,7 +77,7 @@ impl Output {
      * Initializes the terminal size, editor contents, cursor controller, editor rows,
      * status message, and other necessary components.
      */
-    pub(crate) fn new(config: DaVinciConfig) -> Self {
+    pub(crate) fn new(config: NinjaConfig) -> Self {
         let win_size = terminal::size()
             .map(|(x, y)| (x as usize, y as usize - 2))
             .unwrap();

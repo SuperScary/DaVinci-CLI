@@ -1,4 +1,4 @@
-use crate::config::DaVinciConfig;
+use crate::config::NinjaConfig;
 
 mod debug;
 pub mod editor;
@@ -35,7 +35,7 @@ impl ScreenManager {
         self.active_screen.as_mut()
     }
 
-    pub(crate) fn show_editor_screen(&mut self, config: DaVinciConfig) {
+    pub(crate) fn show_editor_screen(&mut self, config: NinjaConfig) {
         let editor = editor::Editor::new(config);
         self.set_active_screen(ActiveScreen::Editor(EditorScreen { screen: editor }));
     }
@@ -55,13 +55,13 @@ impl ScreenManager {
 
 impl EditorScreen {
     pub(crate) fn run(&mut self) {
-        while self.screen.run().expect("Could not run DaVinci Editor") {}
+        while self.screen.run().expect("Could not run Ninja Editor") {}
     }
 }
 
 impl DebugScreen {
     pub(crate) fn run(&mut self) {
-        //while self.screen.run().expect("Could not run DaVinci Debugger") {}
+        //while self.screen.run().expect("Could not run Ninja Debugger") {}
     }
 }
 

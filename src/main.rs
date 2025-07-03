@@ -1,4 +1,4 @@
-use DaVinci_CLI::run_editor;
+use ninja::run_editor;
 
 struct CleanUp;
 

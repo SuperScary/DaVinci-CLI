@@ -1,5 +1,4 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use std::collections::HashMap;
 
 /// Represents a keybind with its associated action and context
 #[derive(Debug, Clone)]

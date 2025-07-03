@@ -1,5 +1,5 @@
 [package]
-name = "DaVinci-CLI"
+name = "ninja"
 version = "0.0.1-alpha"
 edition = "2024"
 build = "build.rs"

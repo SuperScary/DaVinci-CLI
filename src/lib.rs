@@ -13,19 +13,19 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const TAB_STOP: usize = 8;
 
 pub fn run_editor() -> crossterm::Result<()> {
-    use crate::config::DaVinciConfig;
+    use crate::config::NinjaConfig;
     use crate::screens::ScreenManager;
     use crossterm::terminal;
     
     // Load configuration
-    let config = DaVinciConfig::load().unwrap_or_else(|e| {
+    let config = NinjaConfig::load().unwrap_or_else(|e| {
         eprintln!("Failed to load configuration: {}", e);
         eprintln!("Using default configuration...");
-        DaVinciConfig::default()
+        NinjaConfig::default()
     });
     
     // Create default config file if it doesn't exist
-    if let Err(e) = DaVinciConfig::create_default_config() {
+    if let Err(e) = NinjaConfig::create_default_config() {
         eprintln!("Warning: Could not create default config file: {}", e);
     }
     
