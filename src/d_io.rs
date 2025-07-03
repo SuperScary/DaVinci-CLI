@@ -2,14 +2,15 @@ use crate::clipboard::CLIPBOARD;
 use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
 use crate::screens::editor::{EditorContents, EditorRows, Row};
-use crate::event::KeyModifiers;
+use crossterm::event::KeyModifiers;
 use crate::highlighting::{
     CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight,
     JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight, TOMLHighlight,
 };
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
-use crate::statusbar::StatusBar;
+use crate::modules::statusbar::StatusBar;
+use crate::modules::messagebar::MessageBar;
 use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Color;
@@ -508,162 +509,6 @@ impl Output {
         }
     }
 
-    fn draw_message_bar(&mut self) {
-        queue!(
-            self.editor_contents,
-            terminal::Clear(ClearType::UntilNewLine)
-        )
-        .unwrap();
-        if let Some(msg) = self.status_message.message() {
-            let msg_chars: Vec<char> = msg.chars().collect();
-            let truncated_msg = if msg_chars.len() > self.win_size.0 {
-                msg_chars[..self.win_size.0].iter().collect::<String>()
-            } else {
-                msg.clone()
-            };
-            self.editor_contents.push_str(&truncated_msg);
-        }
-    }
-
-    pub(crate) fn delete_char(&mut self) {
-        self.push_undo();
-        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
-            return;
-        }
-        if self.cursor_controller.cursor_y == 0 && self.cursor_controller.cursor_x == 0 {
-            return;
-        }
-        if self.cursor_controller.cursor_x > 0 {
-            self.editor_rows
-                .get_editor_row_mut(self.cursor_controller.cursor_y)
-                .delete_char(self.cursor_controller.cursor_x - 1);
-            self.cursor_controller.cursor_x -= 1;
-        } else {
-            let previous_row = self
-                .editor_rows
-                .get_editor_row(self.cursor_controller.cursor_y - 1);
-            self.cursor_controller.cursor_x = previous_row.char_count();
-            self.editor_rows
-                .join_adjacent_rows(self.cursor_controller.cursor_y);
-            self.cursor_controller.cursor_y -= 1;
-        }
-        if let Some(it) = self.syntax_highlight.as_ref() {
-            it.update_syntax(
-                self.cursor_controller.cursor_y,
-                &mut self.editor_rows.row_contents,
-            );
-        }
-        self.dirty += 1;
-        self.pending_edit = false;
-    }
-
-    fn get_indentation_level(&self, row_content: &str) -> usize {
-        let mut indent_level = 0;
-        for ch in row_content.chars() {
-            if ch == ' ' {
-                indent_level += 1;
-            } else {
-                break;
-            }
-        }
-        indent_level
-    }
-
-    pub(crate) fn insert_newline(&mut self) {
-        if !self.pending_edit {
-            self.push_undo();
-            self.pending_edit = true;
-        }
-        if self.cursor_controller.cursor_x == 0 {
-            // If cursor is at the beginning, check previous line for indentation
-            let indent_level =
-                if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
-                    let previous_row = self
-                        .editor_rows
-                        .get_row(self.cursor_controller.cursor_y - 1);
-                    self.get_indentation_level(previous_row)
-                } else {
-                    0
-                };
-
-            // Create new row with same indentation
-            let indent_spaces = " ".repeat(indent_level);
-            self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y, indent_spaces);
-            self.cursor_controller.cursor_x = indent_level;
-        } else {
-            // Get the current row content and calculate indentation before any mutable operations
-            let current_row = self
-                .editor_rows
-                .get_editor_row(self.cursor_controller.cursor_y);
-            let indent_level = if self.config.editor.auto_indent {
-                self.get_indentation_level(&current_row.row_content)
-            } else {
-                0
-            };
-
-            let current_row = self
-                .editor_rows
-                .get_editor_row_mut(self.cursor_controller.cursor_y);
-
-            // Use character-based substring operation for UTF-8 safety
-            let new_row_content = current_row
-                .substring_by_chars(self.cursor_controller.cursor_x, current_row.char_count());
-
-            // Truncate the current row at the cursor position
-            let truncated_content =
-                current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
-            current_row.row_content = truncated_content;
-            EditorRows::render_row(current_row);
-
-            // Create new line with proper indentation
-            let indent_spaces = " ".repeat(indent_level);
-            let mut new_line_content = indent_spaces;
-            new_line_content.push_str(&new_row_content);
-
-            self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
-            if let Some(it) = self.syntax_highlight.as_ref() {
-                it.update_syntax(
-                    self.cursor_controller.cursor_y,
-                    &mut self.editor_rows.row_contents,
-                );
-                it.update_syntax(
-                    self.cursor_controller.cursor_y + 1,
-                    &mut self.editor_rows.row_contents,
-                )
-            }
-            self.cursor_controller.cursor_x = indent_level;
-        }
-        self.cursor_controller.cursor_y += 1;
-        self.dirty += 1;
-    }
-
-    pub(crate) fn insert_char(&mut self, ch: char) {
-        if !self.pending_edit {
-            self.push_undo();
-            self.pending_edit = true;
-        }
-        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
-            self.editor_rows
-                .insert_row(self.editor_rows.number_of_rows(), String::new());
-            self.dirty += 1;
-        }
-        self.editor_rows
-            .get_editor_row_mut(self.cursor_controller.cursor_y)
-            .insert_char(self.cursor_controller.cursor_x, ch);
-        if let Some(it) = self.syntax_highlight.as_ref() {
-            it.update_syntax(
-                self.cursor_controller.cursor_y,
-                &mut self.editor_rows.row_contents,
-            )
-        }
-        self.cursor_controller.cursor_x += 1;
-        self.dirty += 1;
-    }
-
-
-
     fn draw_rows(&mut self) {
         let screen_rows = self.win_size.1;
         let screen_columns = self.win_size.0;
@@ -820,7 +665,11 @@ impl Output {
             &self.syntax_highlight,
             &self.cursor_controller,
         );
-        self.draw_message_bar();
+        MessageBar::draw_message_bar(
+            &mut self.editor_contents,
+            self.win_size,
+            &mut self.status_message,
+        );
         let cursor_x =
             self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
         let cursor_y = self.cursor_controller.cursor_y - self.cursor_controller.row_offset;
@@ -858,6 +707,143 @@ impl Output {
                 }
             }
         }
+        self.pending_edit = false;
+    }
+
+    fn get_indentation_level(&self, row_content: &str) -> usize {
+        let mut indent_level = 0;
+        for ch in row_content.chars() {
+            if ch == ' ' {
+                indent_level += 1;
+            } else {
+                break;
+            }
+        }
+        indent_level
+    }
+
+    pub(crate) fn insert_char(&mut self, ch: char) {
+        if !self.pending_edit {
+            self.push_undo();
+            self.pending_edit = true;
+        }
+        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
+            self.editor_rows
+                .insert_row(self.editor_rows.number_of_rows(), String::new());
+            self.dirty += 1;
+        }
+        self.editor_rows
+            .get_editor_row_mut(self.cursor_controller.cursor_y)
+            .insert_char(self.cursor_controller.cursor_x, ch);
+        if let Some(it) = self.syntax_highlight.as_ref() {
+            it.update_syntax(
+                self.cursor_controller.cursor_y,
+                &mut self.editor_rows.row_contents,
+            )
+        }
+        self.cursor_controller.cursor_x += 1;
+        self.dirty += 1;
+    }
+
+    pub(crate) fn insert_newline(&mut self) {
+        if !self.pending_edit {
+            self.push_undo();
+            self.pending_edit = true;
+        }
+        if self.cursor_controller.cursor_x == 0 {
+            // If cursor is at the beginning, check previous line for indentation
+            let indent_level =
+                if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
+                    let previous_row = self
+                        .editor_rows
+                        .get_row(self.cursor_controller.cursor_y - 1);
+                    self.get_indentation_level(previous_row)
+                } else {
+                    0
+                };
+
+            // Create new row with same indentation
+            let indent_spaces = " ".repeat(indent_level);
+            self.editor_rows
+                .insert_row(self.cursor_controller.cursor_y, indent_spaces);
+            self.cursor_controller.cursor_x = indent_level;
+        } else {
+            // Get the current row content and calculate indentation before any mutable operations
+            let current_row = self
+                .editor_rows
+                .get_editor_row(self.cursor_controller.cursor_y);
+            let indent_level = if self.config.editor.auto_indent {
+                self.get_indentation_level(&current_row.row_content)
+            } else {
+                0
+            };
+
+            let current_row = self
+                .editor_rows
+                .get_editor_row_mut(self.cursor_controller.cursor_y);
+
+            // Use character-based substring operation for UTF-8 safety
+            let new_row_content = current_row
+                .substring_by_chars(self.cursor_controller.cursor_x, current_row.char_count());
+
+            // Truncate the current row at the cursor position
+            let truncated_content =
+                current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
+            current_row.row_content = truncated_content;
+            EditorRows::render_row(current_row);
+
+            // Create new line with proper indentation
+            let indent_spaces = " ".repeat(indent_level);
+            let mut new_line_content = indent_spaces;
+            new_line_content.push_str(&new_row_content);
+
+            self.editor_rows
+                .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
+            if let Some(it) = self.syntax_highlight.as_ref() {
+                it.update_syntax(
+                    self.cursor_controller.cursor_y,
+                    &mut self.editor_rows.row_contents,
+                );
+                it.update_syntax(
+                    self.cursor_controller.cursor_y + 1,
+                    &mut self.editor_rows.row_contents,
+                )
+            }
+            self.cursor_controller.cursor_x = indent_level;
+        }
+        self.cursor_controller.cursor_y += 1;
+        self.dirty += 1;
+    }
+
+    pub(crate) fn delete_char(&mut self) {
+        self.push_undo();
+        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
+            return;
+        }
+        if self.cursor_controller.cursor_y == 0 && self.cursor_controller.cursor_x == 0 {
+            return;
+        }
+        if self.cursor_controller.cursor_x > 0 {
+            self.editor_rows
+                .get_editor_row_mut(self.cursor_controller.cursor_y)
+                .delete_char(self.cursor_controller.cursor_x - 1);
+            self.cursor_controller.cursor_x -= 1;
+        } else {
+            let previous_row = self
+                .editor_rows
+                .get_editor_row(self.cursor_controller.cursor_y - 1);
+            self.cursor_controller.cursor_x = previous_row.char_count();
+            self.editor_rows
+                .join_adjacent_rows(self.cursor_controller.cursor_y);
+            self.cursor_controller.cursor_y -= 1;
+        }
+        if let Some(it) = self.syntax_highlight.as_ref() {
+            it.update_syntax(
+                self.cursor_controller.cursor_y,
+                &mut self.editor_rows.row_contents,
+            );
+        }
+        self.dirty += 1;
         self.pending_edit = false;
     }
 }

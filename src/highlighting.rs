@@ -1,8 +1,8 @@
-use crate::cmp;
+use std::cmp;
 use crossterm::queue;
 use crossterm::style::{Color, SetForegroundColor};
 use crate::screens::editor::Row;
-use crate::{EditorContents};
+use crate::screens::editor::EditorContents;
 
 #[derive(Copy, Clone)]
 pub(crate) enum HighlightType {

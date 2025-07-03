@@ -1,6 +1,6 @@
-use crate::screens::editor::EditorContents;
-use crate::highlighting::SyntaxHighlight;
-use crate::d_cursor::CursorController;
+use super::super::screens::editor::EditorContents;
+use super::super::highlighting::SyntaxHighlight;
+use super::super::d_cursor::CursorController;
 use crossterm::style;
 use std::cmp;
 
