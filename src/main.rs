@@ -7,6 +7,7 @@ mod status;
 mod clipboard;
 mod screens;
 mod keybinds;
+mod statusbar;
 
 use crate::config::DaVinciConfig;
 use crate::d_io::Output;

@@ -1,4 +1,4 @@
-use crate::clipboard::{Clipboard, CLIPBOARD};
+use crate::clipboard::CLIPBOARD;
 use crate::config::DaVinciConfig;
 use crate::d_cursor::CursorController;
 use crate::screens::editor::{EditorContents, EditorRows, Row};
@@ -9,6 +9,7 @@ use crate::highlighting::{
 };
 use crate::search::{SearchDirection, SearchIndex};
 use crate::status::StatusMessage;
+use crate::statusbar::StatusBar;
 use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Color;
@@ -661,44 +662,7 @@ impl Output {
         self.dirty += 1;
     }
 
-    /// TODO: Should probably move this to a separate trait or module.
-    fn draw_status_bar(&mut self) {
-        self.editor_contents
-            .push_str(&style::Attribute::Reverse.to_string());
-        let info = format!(
-            "{} {}",
-            self.editor_rows
-                .filename
-                .as_ref()
-                .and_then(|path| path.file_name())
-                .and_then(|name| name.to_str())
-                .unwrap_or("[No Name]"),
-            if self.dirty > 0 { "(modified)" } else { "" }
-        );
-        let info_len = cmp::min(info.len(), self.win_size.0);
-        /* LINES AND COLUMNS */
-        let line_info = format!(
-            "{} | {}:{}",
-            self.syntax_highlight
-                .as_ref()
-                .map(|highlight| highlight.file_type())
-                .unwrap_or("Detecting..."),
-            self.cursor_controller.cursor_y + 1,
-            self.cursor_controller.cursor_x + 1
-        );
-        self.editor_contents.push_str(&info[..info_len]);
-        for i in info_len..self.win_size.0 {
-            if self.win_size.0 - i == line_info.len() {
-                self.editor_contents.push_str(&line_info);
-                break;
-            } else {
-                self.editor_contents.push(' ')
-            }
-        }
-        self.editor_contents
-            .push_str(&style::Attribute::Reset.to_string());
-        self.editor_contents.push_str("\r\n");
-    }
+
 
     fn draw_rows(&mut self) {
         let screen_rows = self.win_size.1;
@@ -848,7 +812,14 @@ impl Output {
             .scroll(&self.editor_rows, gutter_width);
         queue!(self.editor_contents, cursor::Hide, cursor::MoveTo(0, 0))?;
         self.draw_rows();
-        self.draw_status_bar();
+        StatusBar::draw_status_bar(
+            &mut self.editor_contents,
+            self.win_size,
+            &self.editor_rows.filename,
+            self.dirty,
+            &self.syntax_highlight,
+            &self.cursor_controller,
+        );
         self.draw_message_bar();
         let cursor_x =
             self.cursor_controller.render_x - self.cursor_controller.column_offset + gutter_width;
