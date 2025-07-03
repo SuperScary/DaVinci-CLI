@@ -1,16 +1,16 @@
-use crate::clipboard::CLIPBOARD;
+use crate::modules::clipboard::CLIPBOARD;
 use crate::config::NinjaConfig;
-use crate::d_cursor::CursorController;
+use crate::modules::cursor::CursorController;
 use crate::screens::editor::{EditorContents, EditorRows, Row};
 use crossterm::event::KeyModifiers;
-use crate::highlighting::{
+use crate::modules::highlighting::{
     CHighlight, CSSHighlight, GoHighlight, HTMLHighlight, HighlightType, JavaHighlight,
     JavaScriptHighlight, PythonHighlight, RustHighlight, SyntaxHighlight, TypeScriptHighlight, TOMLHighlight,
 };
-use crate::search::{SearchDirection, SearchIndex};
-use crate::status::StatusMessage;
+use crate::modules::search::{SearchDirection, SearchIndex};
+use crate::modules::status::StatusMessage;
 use crate::modules::statusbar::StatusBar;
-use crate::modules::messagebar::MessageBar;
+use crate::modules::message_bar::MessageBar;
 use crate::{prompt, VERSION};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use crossterm::style::Color;
@@ -20,18 +20,18 @@ use std::io::{stdout, Write};
 use std::time::Duration;
 use std::{cmp, io};
 
-pub(crate) struct Reader;
+pub struct Reader;
 
-pub(crate) struct Output {
-    pub(crate) win_size: (usize, usize),
+pub struct Output {
+    pub win_size: (usize, usize),
     editor_contents: EditorContents,
-    pub(crate) cursor_controller: CursorController,
-    pub(crate) editor_rows: EditorRows,
-    pub(crate) status_message: StatusMessage,
-    pub(crate) dirty: u64,
+    pub cursor_controller: CursorController,
+    pub editor_rows: EditorRows,
+    pub status_message: StatusMessage,
+    pub dirty: u64,
     search_index: SearchIndex,
-    pub(crate) syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
-    pub(crate) config: NinjaConfig,
+    pub syntax_highlight: Option<Box<dyn SyntaxHighlight>>,
+    pub config: NinjaConfig,
     // Clipboard and selection state
     //clipboard: Clipboard,
     selection_start: Option<(usize, usize)>, // (row, col)
@@ -47,7 +47,7 @@ impl Output {
      * Selects the appropriate syntax highlighting based on the file extension.
      * Returns an Option containing a Boxed SyntaxHighlight trait object.
      */
-    pub(crate) fn select_syntax(extension: &str) -> Option<Box<dyn SyntaxHighlight>> {
+    pub fn select_syntax(extension: &str) -> Option<Box<dyn SyntaxHighlight>> {
         let list: Vec<Box<dyn SyntaxHighlight>> = vec![
             Box::new(RustHighlight::new()),
             Box::new(CHighlight::new()),
@@ -77,7 +77,7 @@ impl Output {
      * Initializes the terminal size, editor contents, cursor controller, editor rows,
      * status message, and other necessary components.
      */
-    pub(crate) fn new(config: NinjaConfig) -> Self {
+    pub fn new(config: NinjaConfig) -> Self {
         let win_size = terminal::size()
             .map(|(x, y)| (x as usize, y as usize - 2))
             .unwrap();
@@ -106,7 +106,7 @@ impl Output {
     /**
      * Clears the terminal screen and moves the cursor to the top-left corner.
      */
-    pub(crate) fn clear_screen() -> crossterm::Result<()> {
+    pub fn clear_screen() -> crossterm::Result<()> {
         execute!(stdout(), terminal::Clear(ClearType::All))?;
         execute!(stdout(), cursor::MoveTo(0, 0))
     }
@@ -222,7 +222,7 @@ impl Output {
     /**
      * Finds a keyword in the editor content.
      */
-    pub(crate) fn find(&mut self) -> io::Result<()> {
+    pub fn find(&mut self) -> io::Result<()> {
         let cursor_controller = self.cursor_controller;
         if prompt!(
             self,
@@ -237,7 +237,7 @@ impl Output {
     }
 
     // Selection and clipboard methods
-    pub(crate) fn start_selection(&mut self) {
+    pub fn start_selection(&mut self) {
         self.is_selecting = true;
         self.selection_start = Some((
             self.cursor_controller.cursor_y,
@@ -249,7 +249,7 @@ impl Output {
         ));
     }
 
-    pub(crate) fn update_selection(&mut self) {
+    pub fn update_selection(&mut self) {
         if self.is_selecting {
             self.selection_end = Some((
                 self.cursor_controller.cursor_y,
@@ -258,13 +258,13 @@ impl Output {
         }
     }
 
-    pub(crate) fn clear_selection(&mut self) {
+    pub fn clear_selection(&mut self) {
         self.is_selecting = false;
         self.selection_start = None;
         self.selection_end = None;
     }
 
-    pub(crate) fn has_selection(&self) -> bool {
+    pub fn has_selection(&self) -> bool {
         if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
             start != end
         } else {
@@ -272,11 +272,11 @@ impl Output {
         }
     }
 
-    pub(crate) fn is_selecting(&self) -> bool {
+    pub fn is_selecting(&self) -> bool {
         self.is_selecting
     }
 
-    pub(crate) fn get_selection_bounds(&self) -> Option<((usize, usize), (usize, usize))> {
+    pub fn get_selection_bounds(&self) -> Option<((usize, usize), (usize, usize))> {
         if let (Some(start), Some(end)) = (self.selection_start, self.selection_end) {
             // Ensure start is before end
             if (start.0 < end.0) || (start.0 == end.0 && start.1 <= end.1) {
@@ -289,7 +289,7 @@ impl Output {
         }
     }
 
-    pub(crate) fn copy_selection(&mut self) {
+    pub fn copy_selection(&mut self) {
         if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
             let mut selected_text = String::new();
 
@@ -325,7 +325,7 @@ impl Output {
         }
     }
 
-    pub(crate) fn cut_selection(&mut self) {
+    pub fn cut_selection(&mut self) {
         if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
             self.push_undo();
             self.copy_selection();
@@ -384,7 +384,7 @@ impl Output {
         }
     }
 
-    pub(crate) fn paste_clipboard(&mut self) {
+    pub fn paste_clipboard(&mut self) {
         if !CLIPBOARD.lock().unwrap().is_empty() {
             self.push_undo();
             let clipboard_content = CLIPBOARD.lock().unwrap().get_top().unwrap().clone();
@@ -489,7 +489,7 @@ impl Output {
         self.dirty += 1;
     }
 
-    pub(crate) fn is_position_selected(&self, row: usize, col: usize) -> bool {
+    pub fn is_position_selected(&self, row: usize, col: usize) -> bool {
         if let Some(((start_row, start_col), (end_row, end_col))) = self.get_selection_bounds() {
             if row == start_row && row == end_row {
                 // Single line selection
@@ -641,13 +641,13 @@ impl Output {
         }
     }
 
-    pub(crate) fn move_cursor(&mut self, direction: KeyCode) {
+    pub fn move_cursor(&mut self, direction: KeyCode) {
         self.cursor_controller
             .move_cursor(direction, &self.editor_rows);
         self.pending_edit = false;
     }
 
-    pub(crate) fn refresh_screen(&mut self) -> crossterm::Result<()> {
+    pub fn refresh_screen(&mut self) -> crossterm::Result<()> {
         let gutter_width = if self.config.editor.show_line_numbers {
             self.config.editor.gutter_width
         } else {
@@ -682,7 +682,7 @@ impl Output {
     }
 
     // Undo stack methods
-    pub(crate) fn push_undo(&mut self) {
+    pub fn push_undo(&mut self) {
         // Store a deep copy of the editor state
         self.undo_stack.push((
             self.editor_rows.row_contents.clone(),
@@ -695,7 +695,7 @@ impl Output {
         }
     }
 
-    pub(crate) fn pop_undo(&mut self) {
+    pub fn pop_undo(&mut self) {
         if let Some((rows, cursor, dirty)) = self.undo_stack.pop() {
             self.editor_rows.row_contents = rows;
             self.cursor_controller = cursor;
@@ -722,7 +722,7 @@ impl Output {
         indent_level
     }
 
-    pub(crate) fn insert_char(&mut self, ch: char) {
+    pub fn insert_char(&mut self, ch: char) {
         if !self.pending_edit {
             self.push_undo();
             self.pending_edit = true;
@@ -745,7 +745,7 @@ impl Output {
         self.dirty += 1;
     }
 
-    pub(crate) fn insert_newline(&mut self) {
+    pub fn insert_newline(&mut self) {
         if !self.pending_edit {
             self.push_undo();
             self.pending_edit = true;
@@ -815,7 +815,7 @@ impl Output {
         self.dirty += 1;
     }
 
-    pub(crate) fn delete_char(&mut self) {
+    pub fn delete_char(&mut self) {
         self.push_undo();
         if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
             return;
@@ -849,7 +849,7 @@ impl Output {
 }
 
 impl Reader {
-    pub(crate) fn read_key(&self) -> crossterm::Result<KeyEvent> {
+    pub fn read_key(&self) -> crossterm::Result<KeyEvent> {
         loop {
             if event::poll(Duration::from_millis(500))? {
                 if let Event::Key(event) = event::read()? {

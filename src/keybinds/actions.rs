@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 use std::collections::HashMap;
-use crate::d_io::Output;
+use crate::transput::transput::Output;
 
 /// Represents an action that can be performed by a keybind
 #[derive(Debug, Clone)]

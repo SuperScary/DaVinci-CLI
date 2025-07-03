@@ -6,8 +6,6 @@
 
 ## Overview
 
-Ninja is a sophisticated terminal-based text editor written in Rust, designed to be as swift and precise as its namesake. Like a true ninja, it moves silently through your codebase, striking with precision when you need to edit, and disappearing when you're done.
-
 Built for developers who value speed, efficiency, and power, Ninja combines the raw performance of Rust with an intuitive interface that gets out of your way. It's the editor that lets you focus on what matters most - your code.
 
 ## Key Features
@@ -224,7 +222,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE.md) file for details.
 
 ## Acknowledgments
 

@@ -5,7 +5,7 @@ use crate::screens::editor::Row;
 use crate::screens::editor::EditorContents;
 
 #[derive(Copy, Clone)]
-pub(crate) enum HighlightType {
+pub enum HighlightType {
     Normal,
     Number,
     SearchMatch,
@@ -17,7 +17,7 @@ pub(crate) enum HighlightType {
     Other(Color),
 }
 
-pub(crate) trait SyntaxHighlight {
+pub trait SyntaxHighlight {
     fn extensions(&self) -> &[&str];
     fn file_type(&self) -> &str;
     fn comment_start(&self) -> &str;

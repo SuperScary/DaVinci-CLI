@@ -1,11 +1,6 @@
 pub mod modules;
 pub mod config;
-pub mod highlighting;
-pub mod search;
-pub mod d_io;
-pub mod d_cursor;
-pub mod status;
-pub mod clipboard;
+pub mod transput;
 pub mod screens;
 pub mod keybinds;
 

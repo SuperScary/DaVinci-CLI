@@ -5,18 +5,18 @@ use crate::screens::editor::{EditorRows, Row};
 use crate::TAB_STOP;
 
 #[derive(Copy, Clone)]
-pub(crate) struct CursorController {
-    pub(crate) cursor_x: usize,
-    pub(crate) cursor_y: usize,
+pub struct CursorController {
+    pub cursor_x: usize,
+    pub cursor_y: usize,
     screen_rows: usize,
     screen_columns: usize,
-    pub(crate) row_offset: usize,
-    pub(crate) column_offset: usize,
-    pub(crate) render_x: usize,
+    pub row_offset: usize,
+    pub column_offset: usize,
+    pub render_x: usize,
 }
 
 impl CursorController {
-    pub(crate) fn new(win_size: (usize, usize)) -> CursorController {
+    pub fn new(win_size: (usize, usize)) -> CursorController {
         Self {
             cursor_x: 0,
             cursor_y: 0,
@@ -42,7 +42,7 @@ impl CursorController {
             })
     }
 
-    pub(crate) fn scroll(&mut self, editor_rows: &EditorRows, gutter_width: usize) {
+    pub fn scroll(&mut self, editor_rows: &EditorRows, gutter_width: usize) {
         self.render_x = 0;
         if self.cursor_y < editor_rows.number_of_rows() {
             self.render_x = self.get_render_x(editor_rows.get_editor_row(self.cursor_y));
@@ -58,7 +58,7 @@ impl CursorController {
         }
     }
 
-    pub(crate) fn move_cursor(&mut self, direction: KeyCode, editor_rows: &EditorRows) {
+    pub fn move_cursor(&mut self, direction: KeyCode, editor_rows: &EditorRows) {
         let number_of_rows = editor_rows.number_of_rows();
 
         match direction {

@@ -1,25 +1,25 @@
 use crate::config::NinjaConfig;
-use crate::d_io::Reader;
-use crate::highlighting::{HighlightType, SyntaxHighlight};
+use crate::transput::transput::Reader;
+use crate::modules::highlighting::{HighlightType, SyntaxHighlight};
 use crate::keybinds::actions::ActionExecutor;
 use crate::keybinds::{KeybindContext, KeybindManager};
-use crate::{d_io, prompt, TAB_STOP};
+use crate::{transput::transput, prompt, TAB_STOP};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use d_io::Output;
+use transput::Output;
 use std::io::{stdout, ErrorKind, Write};
 use std::path::PathBuf;
 use std::{env, fs, io};
 
 #[derive(Clone)]
-pub(crate) struct Row {
-    pub(crate) row_content: String,
-    pub(crate) render: String,
-    pub(crate) highlight: Vec<HighlightType>,
-    pub(crate) is_comment: bool, // add line
+pub struct Row {
+    pub row_content: String,
+    pub render: String,
+    pub highlight: Vec<HighlightType>,
+    pub is_comment: bool, // add line
 }
 
 impl Row {
-    pub(crate) fn new(row_content: String, render: String) -> Self {
+    pub fn new(row_content: String, render: String) -> Self {
         Self {
             row_content,
             render,
@@ -28,7 +28,7 @@ impl Row {
         }
     }
 
-    pub(crate) fn insert_char(&mut self, at: usize, ch: char) {
+    pub fn insert_char(&mut self, at: usize, ch: char) {
         // Convert character index to byte index for safe insertion
         let byte_index = self.row_content
             .char_indices()
@@ -40,7 +40,7 @@ impl Row {
         EditorRows::render_row(self)
     }
 
-    pub(crate) fn delete_char(&mut self, at: usize) {
+    pub fn delete_char(&mut self, at: usize) {
         // Convert character index to byte index for safe deletion
         if let Some((byte_index, _)) = self.row_content.char_indices().nth(at) {
             self.row_content.remove(byte_index);
@@ -49,7 +49,7 @@ impl Row {
     }
 
     // Calculate the display width of a character (1 for normal chars, 2 for wide chars like emojis)
-    pub(crate) fn char_width(ch: char) -> usize {
+    pub fn char_width(ch: char) -> usize {
         match ch {
             '\t' => TAB_STOP,
             // Check if character is in the "Wide" or "Fullwidth" Unicode categories
@@ -105,7 +105,7 @@ impl Row {
         }
     }
 
-    pub(crate) fn get_row_content_x(&self, render_x: usize) -> usize {
+    pub fn get_row_content_x(&self, render_x: usize) -> usize {
         let mut current_render_x = 0;
         for (cursor_x, ch) in self.row_content.chars().enumerate() {
             let char_width = Self::char_width(ch);
@@ -121,12 +121,12 @@ impl Row {
     }
 
     // Helper method to get character count (UTF-8 safe)
-    pub(crate) fn char_count(&self) -> usize {
+    pub fn char_count(&self) -> usize {
         self.row_content.chars().count()
     }
 
     // Helper method to get a substring by character indices (UTF-8 safe)
-    pub(crate) fn substring_by_chars(&self, start: usize, end: usize) -> String {
+    pub fn substring_by_chars(&self, start: usize, end: usize) -> String {
         self.row_content
             .chars()
             .skip(start)
@@ -135,13 +135,13 @@ impl Row {
     }
 }
 
-pub(crate) struct EditorRows {
-    pub(crate) row_contents: Vec<Row>,
-    pub(crate) filename: Option<PathBuf>,
+pub struct EditorRows {
+    pub row_contents: Vec<Row>,
+    pub filename: Option<PathBuf>,
 }
 
 impl EditorRows {
-    pub(crate) fn new(syntax_highlight: &mut Option<Box<dyn SyntaxHighlight>>) -> Self {
+    pub fn new(syntax_highlight: &mut Option<Box<dyn SyntaxHighlight>>) -> Self {
         match env::args().nth(1) {
             None => Self {
                 row_contents: Vec::new(),
@@ -151,7 +151,7 @@ impl EditorRows {
         }
     }
 
-    pub(crate) fn from_file(
+    pub fn from_file(
         file: PathBuf,
         syntax_highlight: &mut Option<Box<dyn SyntaxHighlight>>,
     ) -> Self {
@@ -185,27 +185,27 @@ impl EditorRows {
         }
     }
 
-    pub(crate) fn number_of_rows(&self) -> usize {
+    pub fn number_of_rows(&self) -> usize {
         self.row_contents.len()
     }
 
-    pub(crate) fn get_row(&self, at: usize) -> &str {
+    pub fn get_row(&self, at: usize) -> &str {
         &self.row_contents[at].row_content
     }
 
-    pub(crate) fn get_render(&self, at: usize) -> &String {
+    pub fn get_render(&self, at: usize) -> &String {
         &self.row_contents[at].render
     }
 
-    pub(crate) fn get_editor_row(&self, at: usize) -> &Row {
+    pub fn get_editor_row(&self, at: usize) -> &Row {
         &self.row_contents[at]
     }
 
-    pub(crate) fn get_editor_row_mut(&mut self, at: usize) -> &mut Row {
+    pub fn get_editor_row_mut(&mut self, at: usize) -> &mut Row {
         &mut self.row_contents[at]
     }
 
-    pub(crate) fn render_row(row: &mut Row) {
+    pub fn render_row(row: &mut Row) {
         let mut index = 0;
         let capacity = row
             .row_content
@@ -226,13 +226,13 @@ impl EditorRows {
         });
     }
 
-    pub(crate) fn insert_row(&mut self, at: usize, contents: String) {
+    pub fn insert_row(&mut self, at: usize, contents: String) {
         let mut new_row = Row::new(contents, String::new());
         EditorRows::render_row(&mut new_row);
         self.row_contents.insert(at, new_row);
     }
 
-    pub(crate) fn save(&mut self) -> io::Result<usize> {
+    pub fn save(&mut self) -> io::Result<usize> {
         match &self.filename {
             None => Err(io::Error::new(ErrorKind::Other, "no file name specified")),
             Some(name) => {
@@ -250,7 +250,7 @@ impl EditorRows {
         }
     }
 
-    pub(crate) fn join_adjacent_rows(&mut self, at: usize) {
+    pub fn join_adjacent_rows(&mut self, at: usize) {
         let current_row = self.row_contents.remove(at);
         let previous_row = self.get_editor_row_mut(at - 1);
         previous_row.row_content.push_str(&current_row.row_content);
@@ -258,22 +258,22 @@ impl EditorRows {
     }
 }
 
-pub(crate) struct EditorContents {
+pub struct EditorContents {
     content: String,
 }
 
 impl EditorContents {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             content: String::new(),
         }
     }
 
-    pub(crate) fn push(&mut self, ch: char) {
+    pub fn push(&mut self, ch: char) {
         self.content.push(ch)
     }
 
-    pub(crate) fn push_str(&mut self, string: &str) {
+    pub fn push_str(&mut self, string: &str) {
         self.content.push_str(string)
     }
 }
@@ -297,7 +297,7 @@ impl Write for EditorContents {
     }
 }
 
-pub(crate) struct Editor {
+pub struct Editor {
     reader: Reader,
     output: Output,
     config: NinjaConfig,
@@ -306,7 +306,7 @@ pub(crate) struct Editor {
 }
 
 impl Editor {
-    pub(crate) fn new(config: NinjaConfig) -> Self {
+    pub fn new(config: NinjaConfig) -> Self {
         Self {
             reader: Reader,
             output: Output::new(config.clone()),
@@ -458,7 +458,7 @@ impl Editor {
         Ok(true)
     }
 
-    pub(crate) fn run(&mut self) -> crossterm::Result<bool> {
+    pub fn run(&mut self) -> crossterm::Result<bool> {
         self.output.refresh_screen()?;
         self.process_keypress()
     }

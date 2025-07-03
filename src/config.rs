@@ -3,45 +3,45 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct NinjaConfig {
-    pub(crate) editor: EditorConfig,
-    pub(crate) display: DisplayConfig,
-    pub(crate) behavior: BehaviorConfig,
-    pub(crate) syntax: SyntaxConfig,
+pub struct NinjaConfig {
+    pub editor: EditorConfig,
+    pub display: DisplayConfig,
+    pub behavior: BehaviorConfig,
+    pub syntax: SyntaxConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct EditorConfig {
-    pub(crate) tab_size: usize,
-    pub(crate) soft_tabs: bool,
-    pub(crate) auto_indent: bool,
-    pub(crate) show_line_numbers: bool,
-    pub(crate) gutter_width: usize,
+pub struct EditorConfig {
+    pub tab_size: usize,
+    pub soft_tabs: bool,
+    pub auto_indent: bool,
+    pub show_line_numbers: bool,
+    pub gutter_width: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct DisplayConfig {
-    pub(crate) theme: String,
-    pub(crate) status_bar_style: String,
-    pub(crate) welcome_message: String,
-    pub(crate) show_file_info: bool,
-    pub(crate) show_syntax_info: bool,
+pub struct DisplayConfig {
+    pub theme: String,
+    pub status_bar_style: String,
+    pub welcome_message: String,
+    pub show_file_info: bool,
+    pub show_syntax_info: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct BehaviorConfig {
-    pub(crate) quit_times: u8,
-    pub(crate) auto_save: bool,
-    pub(crate) backup_files: bool,
-    pub(crate) search_case_sensitive: bool,
-    pub(crate) search_wrap_around: bool,
+pub struct BehaviorConfig {
+    pub quit_times: u8,
+    pub auto_save: bool,
+    pub backup_files: bool,
+    pub search_case_sensitive: bool,
+    pub search_wrap_around: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct SyntaxConfig {
-    pub(crate) enable_syntax_highlighting: bool,
-    pub(crate) default_file_type: String,
-    pub(crate) auto_detect_file_type: bool,
+pub struct SyntaxConfig {
+    pub enable_syntax_highlighting: bool,
+    pub default_file_type: String,
+    pub auto_detect_file_type: bool,
 }
 
 impl Default for NinjaConfig {
@@ -78,7 +78,7 @@ impl Default for NinjaConfig {
 }
 
 impl NinjaConfig {
-    pub(crate) fn load() -> Result<Self, ConfigError> {
+    pub fn load() -> Result<Self, ConfigError> {
         let config_path = Self::get_config_path();
         
         let config = Config::builder()
@@ -96,7 +96,7 @@ impl NinjaConfig {
         config.try_deserialize()
     }
 
-    pub(crate) fn get_config_path() -> PathBuf {
+    pub fn get_config_path() -> PathBuf {
         let mut config_path = if let Some(home) = dirs::home_dir() {
             home.join(".config").join("ninja")
         } else {
@@ -106,7 +106,7 @@ impl NinjaConfig {
         config_path
     }
 
-    pub(crate) fn create_default_config() -> Result<(), std::io::Error> {
+    pub fn create_default_config() -> Result<(), std::io::Error> {
         let config_path = Self::get_config_path();
         
         // Create directory if it doesn't exist

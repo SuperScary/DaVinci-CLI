@@ -1,5 +1,5 @@
 use crate::screens::editor::EditorContents;
-use crate::status::StatusMessage;
+use crate::modules::status::StatusMessage;
 use crossterm::terminal::{self, ClearType};
 use crossterm::queue;
 

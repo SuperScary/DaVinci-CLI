@@ -2,13 +2,13 @@ use std::sync::Mutex;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use once_cell::sync::Lazy;
 
-pub(crate) struct Clipboard {
+pub struct Clipboard {
     stack: Vec<String>,
     ctx: ClipboardContext
 }
 
 impl Clipboard {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         //Clipboard { stack: Vec::new(), ctx: ClipboardContext::new().unwrap() }
         let mut cb = Clipboard {
             stack: Vec::new(),
@@ -21,7 +21,7 @@ impl Clipboard {
     }
     
     /// Initialize the clipboard with the current clipboard contents if they exist.
-    pub(crate) fn init(mut self) -> Self {
+    pub fn init(mut self) -> Self {
         if let Ok(stack) = self.ctx.get_contents() { 
             self.stack.push(stack);
         }
@@ -29,7 +29,7 @@ impl Clipboard {
     }
 
     /// Copy text to the clipboard stack at the top
-    pub(crate) fn add(&mut self, text: String) {
+    pub fn add(&mut self, text: String) {
         if !text.is_empty() {
             self.stack.push(text.clone());
             self.ctx.set_contents(text.clone()).unwrap();
@@ -37,7 +37,7 @@ impl Clipboard {
     }
 
     /// Paste and remove the last copied text
-    pub(crate) fn paste(&mut self) -> Option<String> {
+    pub fn paste(&mut self) -> Option<String> {
         if let Some(text) = self.stack.pop() {
             Some(text)
         } else {
@@ -46,7 +46,7 @@ impl Clipboard {
     }
 
     /// Paste without removing the last copied text
-    pub(crate) fn paste_peek(&self) -> Option<String> {
+    pub fn paste_peek(&self) -> Option<String> {
         if let Some(text) = self.stack.last() {
             Some(text.clone())
         } else {
@@ -54,27 +54,27 @@ impl Clipboard {
         }
     }
 
-    pub(crate) fn peek(&self) -> Option<&String> {
+    pub fn peek(&self) -> Option<&String> {
         self.stack.last()
     }
 
-    pub(crate) fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.stack.len()
     }
     
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.stack.clear();
     }
     
-    pub(crate) fn get(&self, index: usize) -> Option<&String> {
+    pub fn get(&self, index: usize) -> Option<&String> {
         self.stack.get(index)
     }
     
-    pub(crate) fn get_top(&self) -> Option<&String> {
+    pub fn get_top(&self) -> Option<&String> {
         self.stack.last()
     }
     
-    pub(crate) fn remove(&mut self, index: usize) -> Option<String> {
+    pub fn remove(&mut self, index: usize) -> Option<String> {
         if index < self.stack.len() {
             Some(self.stack.remove(index))
         } else {
@@ -82,11 +82,11 @@ impl Clipboard {
         }
     }
     
-    pub(crate) fn get_contents(&self) -> Vec<String> {
+    pub fn get_contents(&self) -> Vec<String> {
         self.stack.clone()
     }
     
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
 }

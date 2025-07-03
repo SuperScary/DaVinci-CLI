@@ -4,43 +4,43 @@ mod debug;
 pub mod editor;
 mod clipboard;
 
-pub(crate) struct ScreenManager {
+pub struct ScreenManager {
     active_screen: Option<ActiveScreen>
 }
-pub(crate) struct EditorScreen {
+pub struct EditorScreen {
     screen: editor::Editor,
 }
-pub(crate) struct DebugScreen {
+pub struct DebugScreen {
     screen: debug::DebugScreen,
 }
-pub(crate) struct ClipboardScreen {
+pub struct ClipboardScreen {
     screen: clipboard::ClipboardScreen,
 }
 impl ScreenManager {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             active_screen: None
         }
     }
     
-    pub(crate) fn set_active_screen(&mut self, screen: ActiveScreen) {
+    pub fn set_active_screen(&mut self, screen: ActiveScreen) {
         self.active_screen = Some(screen);
     }
     
-    pub(crate) fn active_screen(&self) -> Option<&ActiveScreen> {
+    pub fn active_screen(&self) -> Option<&ActiveScreen> {
         self.active_screen.as_ref()
     }
     
-    pub(crate) fn active_screen_mut(&mut self) -> Option<&mut ActiveScreen> {
+    pub fn active_screen_mut(&mut self) -> Option<&mut ActiveScreen> {
         self.active_screen.as_mut()
     }
 
-    pub(crate) fn show_editor_screen(&mut self, config: NinjaConfig) {
+    pub fn show_editor_screen(&mut self, config: NinjaConfig) {
         let editor = editor::Editor::new(config);
         self.set_active_screen(ActiveScreen::Editor(EditorScreen { screen: editor }));
     }
     
-    pub(crate) fn run_active(&mut self) {
+    pub fn run_active(&mut self) {
         match self.active_screen_mut() {
             Some(ActiveScreen::Editor(editor)) => editor.run(),
             Some(ActiveScreen::Debug(debug)) => debug.run(),
@@ -54,19 +54,19 @@ impl ScreenManager {
 }
 
 impl EditorScreen {
-    pub(crate) fn run(&mut self) {
+    pub fn run(&mut self) {
         while self.screen.run().expect("Could not run Ninja Editor") {}
     }
 }
 
 impl DebugScreen {
-    pub(crate) fn run(&mut self) {
+    pub fn run(&mut self) {
         //while self.screen.run().expect("Could not run Ninja Debugger") {}
     }
 }
 
 impl ClipboardScreen {
-    pub(crate) fn run(&mut self) {
+    pub fn run(&mut self) {
         // Implement clipboard screen logic here
     }}
 

@@ -1,4 +1,4 @@
-use crate::highlighting::HighlightType;
+use crate::modules::highlighting::HighlightType;
 
 pub(crate) enum SearchDirection {
     Forward,
