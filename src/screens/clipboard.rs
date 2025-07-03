@@ -1,5 +1,5 @@
 use crate::modules::clipboard;
 
-pub(crate) struct ClipboardScreen {
+pub struct ClipboardScreen {
     clipboard: clipboard::Clipboard
 }

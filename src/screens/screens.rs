@@ -1,8 +1,5 @@
 use crate::config::NinjaConfig;
-
-mod debug;
-pub mod editor;
-mod clipboard;
+use crate::screens::{clipboard, debug, editor};
 
 pub struct ScreenManager {
     active_screen: Option<ActiveScreen>

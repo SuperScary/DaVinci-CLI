@@ -37,13 +37,13 @@ Built for developers who value speed, efficiency, and power, Ninja combines the 
 ## Comparison with Traditional Editors
 
 ### vs. Vim
-| Feature | Vim | Ninja |
-|---------|-----|-------------|
-| **Learning Curve** | Steep (modal editing) | Gentle (intuitive shortcuts) |
-| **Configuration** | Vimscript (complex) | TOML (simple, readable) |
-| **Modern Features** | Requires plugins | Built-in |
-| **Cross-platform** | Good | Excellent |
-| **Performance** | Excellent | Excellent (Rust) |
+| Feature             | Vim                   | Ninja                        |
+|---------------------|-----------------------|------------------------------|
+| **Learning Curve**  | Steep (modal editing) | Gentle (intuitive shortcuts) |
+| **Configuration**   | Vimscript (complex)   | TOML (simple, readable)      |
+| **Modern Features** | Requires plugins      | Built-in                     |
+| **Cross-platform**  | Good                  | Excellent                    |
+| **Performance**     | Excellent             | Excellent (Rust)             |
 
 **Why choose Ninja over Vim?**
 - No need to learn modal editing modes
@@ -52,13 +52,13 @@ Built for developers who value speed, efficiency, and power, Ninja combines the 
 - More intuitive for developers coming from modern IDEs
 
 ### vs. Emacs
-| Feature | Emacs | Ninja |
-|---------|-------|-------------|
-| **Resource Usage** | High (full Lisp environment) | Low (lightweight Rust binary) |
-| **Startup Time** | Slow | Instant |
-| **Configuration** | Emacs Lisp (powerful but complex) | TOML (simple and declarative) |
-| **Learning Curve** | Very steep | Moderate |
-| **Memory Footprint** | Large | Minimal |
+| Feature              | Emacs                             | Ninja                         |
+|----------------------|-----------------------------------|-------------------------------|
+| **Resource Usage**   | High (full Lisp environment)      | Low (lightweight Rust binary) |
+| **Startup Time**     | Slow                              | Instant                       |
+| **Configuration**    | Emacs Lisp (powerful but complex) | TOML (simple and declarative) |
+| **Learning Curve**   | Very steep                        | Moderate                      |
+| **Memory Footprint** | Large                             | Minimal                       |
 
 **Why choose Ninja over Emacs?**
 - Much faster startup and lower resource usage

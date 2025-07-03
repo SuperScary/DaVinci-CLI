@@ -333,26 +333,14 @@ impl Output {
             // Remove the selected text
             if start_row == end_row {
                 // Single line selection
-                let row = self.editor_rows.get_editor_row_mut(start_row);
-                let mut chars: Vec<char> = row.row_content.chars().collect();
-                chars.drain(start_col..end_col);
-                row.row_content = chars.into_iter().collect();
-                EditorRows::render_row(row);
+                self.remove_chars_from_row(start_row, start_col, end_col);
             } else {
                 // Multi-line selection
                 // Handle the end row (remove from beginning to end_col)
-                let end_row_ref = self.editor_rows.get_editor_row_mut(end_row);
-                let mut end_chars: Vec<char> = end_row_ref.row_content.chars().collect();
-                end_chars.drain(..end_col);
-                end_row_ref.row_content = end_chars.into_iter().collect();
-                EditorRows::render_row(end_row_ref);
+                self.remove_chars_from_row(end_row, 0, end_col);
 
                 // Handle the start row (remove from start_col to end)
-                let start_row_ref = self.editor_rows.get_editor_row_mut(start_row);
-                let mut start_chars: Vec<char> = start_row_ref.row_content.chars().collect();
-                start_chars.drain(start_col..);
-                start_row_ref.row_content = start_chars.into_iter().collect();
-                EditorRows::render_row(start_row_ref);
+                self.remove_chars_from_row(start_row, start_col, self.editor_rows.get_editor_row(start_row).char_count());
 
                 // Remove all rows in between
                 let rows_to_remove = end_row - start_row - 1;
@@ -403,9 +391,18 @@ impl Output {
         }
     }
 
+    /// Checks if the cursor is at the bottom of the file
+    fn cursor_at_bottom(&mut self) -> bool {
+        self.cursor_controller.cursor_y == self.editor_rows.number_of_rows()
+    }
+    
+    fn cursor_at_start(&mut self) -> bool {
+        self.cursor_controller.cursor_x == 0
+    }
+    
     // Helper methods that don't push undo (used by paste operation)
-    fn insert_char_without_undo(&mut self, ch: char) {
-        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
+    fn insert_char_core(&mut self, ch: char) {
+        if self.cursor_at_bottom() {
             self.editor_rows
                 .insert_row(self.editor_rows.number_of_rows(), String::new());
             self.dirty += 1;
@@ -413,18 +410,13 @@ impl Output {
         self.editor_rows
             .get_editor_row_mut(self.cursor_controller.cursor_y)
             .insert_char(self.cursor_controller.cursor_x, ch);
-        if let Some(it) = self.syntax_highlight.as_ref() {
-            it.update_syntax(
-                self.cursor_controller.cursor_y,
-                &mut self.editor_rows.row_contents,
-            )
-        }
+        self.update_syntax_highlighting(self.cursor_controller.cursor_y);
         self.cursor_controller.cursor_x += 1;
         self.dirty += 1;
     }
 
-    fn insert_newline_without_undo(&mut self) {
-        if self.cursor_controller.cursor_x == 0 {
+    fn insert_newline_core(&mut self) {
+        if self.cursor_at_start() {
             // If cursor is at the beginning, check previous line for indentation
             let indent_level =
                 if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
@@ -473,20 +465,21 @@ impl Output {
 
             self.editor_rows
                 .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
-            if let Some(it) = self.syntax_highlight.as_ref() {
-                it.update_syntax(
-                    self.cursor_controller.cursor_y,
-                    &mut self.editor_rows.row_contents,
-                );
-                it.update_syntax(
-                    self.cursor_controller.cursor_y + 1,
-                    &mut self.editor_rows.row_contents,
-                )
-            }
+            self.update_syntax_highlighting(self.cursor_controller.cursor_y);
+            self.update_syntax_highlighting(self.cursor_controller.cursor_y + 1);
             self.cursor_controller.cursor_x = indent_level;
         }
         self.cursor_controller.cursor_y += 1;
         self.dirty += 1;
+    }
+
+    // Helper methods that don't push undo (used by paste operation)
+    fn insert_char_without_undo(&mut self, ch: char) {
+        self.insert_char_core(ch);
+    }
+
+    fn insert_newline_without_undo(&mut self) {
+        self.insert_newline_core();
     }
 
     pub fn is_position_selected(&self, row: usize, col: usize) -> bool {
@@ -722,27 +715,26 @@ impl Output {
         indent_level
     }
 
+    fn update_syntax_highlighting(&mut self, row_index: usize) {
+        if let Some(it) = self.syntax_highlight.as_ref() {
+            it.update_syntax(row_index, &mut self.editor_rows.row_contents);
+        }
+    }
+
+    fn remove_chars_from_row(&mut self, row_index: usize, start: usize, end: usize) {
+        let row = self.editor_rows.get_editor_row_mut(row_index);
+        let mut chars: Vec<char> = row.row_content.chars().collect();
+        chars.drain(start..end);
+        row.row_content = chars.into_iter().collect();
+        EditorRows::render_row(row);
+    }
+
     pub fn insert_char(&mut self, ch: char) {
         if !self.pending_edit {
             self.push_undo();
             self.pending_edit = true;
         }
-        if self.cursor_controller.cursor_y == self.editor_rows.number_of_rows() {
-            self.editor_rows
-                .insert_row(self.editor_rows.number_of_rows(), String::new());
-            self.dirty += 1;
-        }
-        self.editor_rows
-            .get_editor_row_mut(self.cursor_controller.cursor_y)
-            .insert_char(self.cursor_controller.cursor_x, ch);
-        if let Some(it) = self.syntax_highlight.as_ref() {
-            it.update_syntax(
-                self.cursor_controller.cursor_y,
-                &mut self.editor_rows.row_contents,
-            )
-        }
-        self.cursor_controller.cursor_x += 1;
-        self.dirty += 1;
+        self.insert_char_core(ch);
     }
 
     pub fn insert_newline(&mut self) {
@@ -750,69 +742,7 @@ impl Output {
             self.push_undo();
             self.pending_edit = true;
         }
-        if self.cursor_controller.cursor_x == 0 {
-            // If cursor is at the beginning, check previous line for indentation
-            let indent_level =
-                if self.config.editor.auto_indent && self.cursor_controller.cursor_y > 0 {
-                    let previous_row = self
-                        .editor_rows
-                        .get_row(self.cursor_controller.cursor_y - 1);
-                    self.get_indentation_level(previous_row)
-                } else {
-                    0
-                };
-
-            // Create new row with same indentation
-            let indent_spaces = " ".repeat(indent_level);
-            self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y, indent_spaces);
-            self.cursor_controller.cursor_x = indent_level;
-        } else {
-            // Get the current row content and calculate indentation before any mutable operations
-            let current_row = self
-                .editor_rows
-                .get_editor_row(self.cursor_controller.cursor_y);
-            let indent_level = if self.config.editor.auto_indent {
-                self.get_indentation_level(&current_row.row_content)
-            } else {
-                0
-            };
-
-            let current_row = self
-                .editor_rows
-                .get_editor_row_mut(self.cursor_controller.cursor_y);
-
-            // Use character-based substring operation for UTF-8 safety
-            let new_row_content = current_row
-                .substring_by_chars(self.cursor_controller.cursor_x, current_row.char_count());
-
-            // Truncate the current row at the cursor position
-            let truncated_content =
-                current_row.substring_by_chars(0, self.cursor_controller.cursor_x);
-            current_row.row_content = truncated_content;
-            EditorRows::render_row(current_row);
-
-            // Create new line with proper indentation
-            let indent_spaces = " ".repeat(indent_level);
-            let mut new_line_content = indent_spaces;
-            new_line_content.push_str(&new_row_content);
-
-            self.editor_rows
-                .insert_row(self.cursor_controller.cursor_y + 1, new_line_content);
-            if let Some(it) = self.syntax_highlight.as_ref() {
-                it.update_syntax(
-                    self.cursor_controller.cursor_y,
-                    &mut self.editor_rows.row_contents,
-                );
-                it.update_syntax(
-                    self.cursor_controller.cursor_y + 1,
-                    &mut self.editor_rows.row_contents,
-                )
-            }
-            self.cursor_controller.cursor_x = indent_level;
-        }
-        self.cursor_controller.cursor_y += 1;
-        self.dirty += 1;
+        self.insert_newline_core();
     }
 
     pub fn delete_char(&mut self) {
@@ -837,12 +767,7 @@ impl Output {
                 .join_adjacent_rows(self.cursor_controller.cursor_y);
             self.cursor_controller.cursor_y -= 1;
         }
-        if let Some(it) = self.syntax_highlight.as_ref() {
-            it.update_syntax(
-                self.cursor_controller.cursor_y,
-                &mut self.editor_rows.row_contents,
-            );
-        }
+        self.update_syntax_highlighting(self.cursor_controller.cursor_y);
         self.dirty += 1;
         self.pending_edit = false;
     }

@@ -1,3 +1,4 @@
+
 pub mod modules;
 pub mod config;
 pub mod transput;
@@ -9,7 +10,7 @@ pub const TAB_STOP: usize = 8;
 
 pub fn run_editor() -> crossterm::Result<()> {
     use crate::config::NinjaConfig;
-    use crate::screens::ScreenManager;
+    use crate::screens::screens::ScreenManager;
     use crossterm::terminal;
     
     // Load configuration
