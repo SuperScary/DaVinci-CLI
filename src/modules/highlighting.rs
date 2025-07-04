@@ -1,29 +1,210 @@
+//! # Syntax Highlighting Module
+//! 
+//! This module provides syntax highlighting functionality for the Ninja editor.
+//! It supports multiple programming languages with customizable color schemes
+//! and extensible highlighting rules.
+//! 
+//! ## Features
+//! 
+//! - **Multi-language Support**: Rust, C, Java, Python, Go, JavaScript, TypeScript, HTML, CSS, TOML
+//! - **Real-time Highlighting**: Updates syntax highlighting as you type
+//! - **Extensible System**: Easy to add new language support
+//! - **Customizable Colors**: Configurable color schemes for different token types
+//! - **Comment Support**: Single-line and multi-line comment highlighting
+//! - **String Literals**: Proper highlighting of string and character literals
+//! - **Keyword Recognition**: Language-specific keyword highlighting
+//! 
+//! ## Architecture
+//! 
+//! The highlighting system consists of:
+//! - **`HighlightType`**: Enumeration of different token types
+//! - **`SyntaxHighlight`**: Trait defining the interface for language highlighters
+//! - **`syntax_struct!`**: Macro for easily creating new language highlighters
+//! - **Language-specific structs**: Concrete implementations for each supported language
+//! 
+//! ## Usage
+//! 
+//! ```rust
+//! use ninja::modules::highlighting::{SyntaxHighlight, RustHighlight, HighlightType};
+//!
+//! let highlighter = RustHighlight::new();
+//! let color = highlighter.syntax_color(&HighlightType::String);
+//! ```
+
 use std::cmp;
 use crossterm::queue;
 use crossterm::style::{Color, SetForegroundColor};
 use crate::screens::editor::Row;
 use crate::screens::editor::EditorContents;
 
+/// Represents different types of syntax highlighting tokens.
+/// 
+/// This enum defines all the different types of tokens that can be highlighted
+/// in the editor, each with its own color scheme.
+/// 
+/// # Variants
+/// 
+/// - **`Normal`**: Default text color
+/// - **`Number`**: Numeric literals (integers, floats)
+/// - **`SearchMatch`**: Text that matches the current search term
+/// - **`String`**: String literals (double-quoted)
+/// - **`CharLiteral`**: Character literals (single-quoted)
+/// - **`Comment`**: Single-line comments
+/// - **`MultilineComment`**: Multi-line comments
+/// - **`Selection`**: Currently selected text
+/// - **`Other`**: Custom color for special cases
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use crossterm::style::Color;
+/// use ninja::modules::highlighting::HighlightType;
+///
+/// let highlight = HighlightType::String;
+/// let selection = HighlightType::Selection;
+/// let custom = HighlightType::Other(Color::Red);
+/// ```
 #[derive(Copy, Clone)]
 pub enum HighlightType {
+    /// Default text color
     Normal,
+    /// Numeric literals (integers, floats)
     Number,
+    /// Text that matches the current search term
     SearchMatch,
+    /// String literals (double-quoted)
     String,
+    /// Character literals (single-quoted)
     CharLiteral,
+    /// Single-line comments
     Comment,
-    MultilineComment, // add line
-    Selection, // Text selection
+    /// Multi-line comments
+    MultilineComment,
+    /// Currently selected text
+    Selection,
+    /// Custom color for special cases
     Other(Color),
 }
 
+/// Trait defining the interface for syntax highlighting implementations.
+/// 
+/// This trait provides the contract that all language-specific syntax
+/// highlighters must implement. It defines methods for:
+/// - Language identification and file extensions
+/// - Comment syntax detection
+/// - Color scheme definition
+/// - Syntax analysis and highlighting
+/// 
+/// # Implementing Syntax Highlighting
+/// 
+/// To add support for a new language, implement this trait:
+/// 
+/// ```rust
+/// use ninja::modules::highlighting::{SyntaxHighlight, HighlightType};
+/// use crossterm::style::Color;/// 
+///
+/// use ninja::screens::editor::Row;
+///
+/// struct MyLanguageHighlight;
+///
+/// impl SyntaxHighlight for MyLanguageHighlight {
+///     fn extensions(&self) -> &[&str] {
+///         &["my", "mylang"]
+///     }
+///     
+///     fn file_type(&self) -> &str {
+///         "MyLanguage"
+///     }
+///     
+///     fn comment_start(&self) -> &str {
+///         "//"
+///     }
+///     
+///     fn multiline_comment(&self) -> Option<(&str, &str)> {
+///         Some(("/*", "*/"))
+///     }
+///     
+///     fn syntax_color(&self, highlight_type: &HighlightType) -> Color {
+///         match highlight_type {
+///             HighlightType::String => Color::Green,
+///             HighlightType::Comment => Color::DarkGrey,
+///             _ => Color::Reset,
+///         }
+///     }
+///     
+///     fn update_syntax(&self, at: usize, editor_rows: &mut Vec<Row>) {
+///         // Implement syntax analysis logic
+///     }
+/// }
+/// ```
 pub trait SyntaxHighlight {
+    /// Returns the file extensions supported by this highlighter.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns a slice of file extensions (without the dot) that this
+    /// highlighter can handle.
     fn extensions(&self) -> &[&str];
+    
+    /// Returns the human-readable name of the language.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns a string representing the language name.
     fn file_type(&self) -> &str;
+    
+    /// Returns the string that starts single-line comments.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns the comment start sequence (e.g., "//", "#", "--").
     fn comment_start(&self) -> &str;
-    fn multiline_comment(&self) -> Option<(&str, &str)>; // add line
+    
+    /// Returns the start and end sequences for multi-line comments.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Some((start, end))` if the language supports multi-line comments,
+    /// or `None` if it doesn't.
+    fn multiline_comment(&self) -> Option<(&str, &str)>;
+    
+    /// Returns the color for a given highlight type.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `highlight_type` - The type of token to color
+    /// 
+    /// # Returns
+    /// 
+    /// Returns the color that should be used for the given highlight type.
     fn syntax_color(&self, highlight_type: &HighlightType) -> Color;
+    
+    /// Updates the syntax highlighting for a specific row.
+    /// 
+    /// This method analyzes the text in the specified row and updates
+    /// the highlighting information. It should handle:
+    /// - Keyword recognition
+    /// - String and character literal detection
+    /// - Comment detection (single and multi-line)
+    /// - Number recognition
+    /// - Continuation from previous rows (for multi-line constructs)
+    /// 
+    /// # Arguments
+    /// 
+    /// * `at` - The index of the row to update
+    /// * `editor_rows` - The complete collection of editor rows
     fn update_syntax(&self, at: usize, editor_rows: &mut Vec<Row>);
+    
+    /// Renders a row with syntax highlighting colors.
+    /// 
+    /// This method applies the highlighting colors to the text and
+    /// writes the colored output to the provided buffer.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `render` - The text to render
+    /// * `highlight` - The highlighting information for each character
+    /// * `out` - The output buffer to write colored text to
     fn color_row(&self, render: &str, highlight: &[HighlightType], out: &mut EditorContents) {
         let mut current_color = self.syntax_color(&HighlightType::Normal);
         render.char_indices().enumerate().for_each(|(char_index, (_byte_index, c))| {
@@ -40,6 +221,19 @@ pub trait SyntaxHighlight {
         });
         let _ = queue!(out, SetForegroundColor(Color::Reset));
     }
+    
+    /// Determines if a character is a separator (word boundary).
+    /// 
+    /// This method is used to identify word boundaries for keyword
+    /// recognition and other syntax analysis.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `c` - The character to check
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `true` if the character is a separator, `false` otherwise.
     fn is_separator(&self, c: char) -> bool {
         c.is_whitespace()
             || [
@@ -50,6 +244,60 @@ pub trait SyntaxHighlight {
     }
 }
 
+/// Macro for easily creating new syntax highlighting implementations.
+/// 
+/// This macro generates a complete syntax highlighting implementation
+/// for a new language, including the struct definition, constructor,
+/// and trait implementation.
+/// 
+/// # Syntax
+/// 
+/// ```rust
+/// use ninja::syntax_struct;
+/// use crossterm::style::Color;
+///
+/// syntax_struct! {
+///     struct LanguageName {
+///         extensions: ["ext1", "ext2"],
+///         file_type: "Language Name",
+///         comment_start: "//",
+///         keywords: {
+///             [Color::Yellow; "keyword1", "keyword2"],
+///             [Color::Magenta; "type1", "type2"]
+///         },
+///         multiline_comment: Some(("/*", "*/"))
+///     }
+/// }
+/// ```
+/// 
+/// # Parameters
+/// 
+/// - **`struct`**: The name of the struct to create
+/// - **`extensions`**: Array of file extensions this language supports
+/// - **`file_type`**: Human-readable language name
+/// - **`comment_start`**: String that starts single-line comments
+/// - **`keywords`**: Array of keyword groups with their colors
+/// - **`multiline_comment`**: Optional tuple of multi-line comment delimiters
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use ninja::syntax_struct;
+/// use crossterm::style::Color;
+///
+/// syntax_struct! {
+///     struct MyLanguageHighlight {
+///         extensions: ["ml", "mylang"],
+///         file_type: "MyLanguage",
+///         comment_start: "#",
+///         keywords: {
+///             [Color::Yellow; "if", "else", "while", "for"],
+///             [Color::Magenta; "int", "string", "bool"]
+///         },
+///         multiline_comment: Some(("/*", "*/"))
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! syntax_struct {
     (
