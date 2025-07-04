@@ -1,3 +1,36 @@
+//! # Terminal Input/Output Implementation
+//! 
+//! This module contains the core implementation of the Ninja editor's terminal
+//! input/output functionality. It provides the `Reader` and `Output` structs
+//! that handle all user interaction and screen rendering.
+//! 
+//! ## Key Components
+//! 
+//! - **`Reader`**: Processes keyboard input and provides a clean interface for key events
+//! - **`Output`**: Manages the editor state, text content, and screen rendering
+//! 
+//! ## Text Editing Features
+//! 
+//! - Character insertion and deletion with undo/redo
+//! - Multi-line text selection and manipulation
+//! - Clipboard integration with copy/cut/paste
+//! - Search functionality with highlighting
+//! - Syntax highlighting for multiple programming languages
+//! 
+//! ## Screen Management
+//! 
+//! - Efficient terminal rendering with minimal screen updates
+//! - Smart scrolling to keep cursor visible
+//! - Status bar and message bar display
+//! - Line number gutter support
+//! 
+//! ## State Management
+//! 
+//! - Undo/redo stack for all text operations
+//! - Selection state tracking
+//! - Search state and highlighting
+//! - Configuration integration
+
 use crate::modules::clipboard::CLIPBOARD;
 use crate::config::NinjaConfig;
 use crate::modules::cursor::CursorController;
@@ -20,8 +53,58 @@ use std::io::{stdout, Write};
 use std::time::Duration;
 use std::{cmp, io};
 
+/// Handles keyboard input and event processing for the editor.
+/// 
+/// This struct provides a clean interface for reading keyboard events
+/// from the terminal with proper error handling and event polling.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use ninja::transput::transput::Reader;
+/// 
+/// let reader = Reader;
+/// let key_event = reader.read_key()?;
+/// ```
 pub struct Reader;
 
+/// Manages the editor's output, state, and text processing.
+/// 
+/// This is the main struct that coordinates all editor functionality including:
+/// - Text content management and editing
+/// - Screen rendering and display
+/// - Cursor positioning and movement
+/// - Selection and clipboard operations
+/// - Search functionality
+/// - Syntax highlighting
+/// - Undo/redo operations
+/// 
+/// # State Management
+/// 
+/// The `Output` struct maintains several types of state:
+/// - **Text Content**: The actual file content being edited
+/// - **Cursor State**: Current cursor position and scroll offsets
+/// - **Selection State**: Text selection boundaries and highlighting
+/// - **Search State**: Current search term and highlighting
+/// - **Undo State**: Stack of previous states for undo/redo
+/// - **Configuration**: Editor settings and preferences
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use ninja::transput::transput::Output;
+/// use ninja::config::NinjaConfig;
+/// 
+/// let config = NinjaConfig::default();
+/// let mut output = Output::new(config);
+/// 
+/// // Insert text
+/// output.insert_char('H');
+/// output.insert_char('i');
+/// 
+/// // Refresh the screen
+/// output.refresh_screen()?;
+/// ```
 pub struct Output {
     pub win_size: (usize, usize),
     editor_contents: EditorContents,
@@ -43,10 +126,45 @@ pub struct Output {
 }
 
 impl Output {
-    /**
-     * Selects the appropriate syntax highlighting based on the file extension.
-     * Returns an Option containing a Boxed SyntaxHighlight trait object.
-     */
+    /// Selects the appropriate syntax highlighting based on the file extension.
+    /// 
+    /// This method determines which syntax highlighter to use based on the
+    /// file extension. It supports multiple programming languages including
+    /// Rust, C, Java, Python, Go, JavaScript, TypeScript, HTML, CSS, and TOML.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `extension` - The file extension (without the dot) to match
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Some(Box<dyn SyntaxHighlight>)` if a matching highlighter is found,
+    /// or `None` if no highlighter supports the given extension.
+    /// 
+    /// # Supported Extensions
+    /// 
+    /// - **Rust**: `rs`
+    /// - **C/C++**: `c`, `cpp`, `h`, `hpp`
+    /// - **Java**: `java`
+    /// - **Python**: `py`
+    /// - **Go**: `go`
+    /// - **JavaScript**: `js`
+    /// - **TypeScript**: `ts`, `tsx`
+    /// - **HTML**: `html`, `htm`
+    /// - **CSS**: `css`
+    /// - **TOML**: `toml`
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use ninja::transput::transput::Output;
+    /// 
+    /// let highlighter = Output::select_syntax("rs");
+    /// assert!(highlighter.is_some());
+    /// 
+    /// let highlighter = Output::select_syntax("unknown");
+    /// assert!(highlighter.is_none());
+    /// ```
     pub fn select_syntax(extension: &str) -> Option<Box<dyn SyntaxHighlight>> {
         let list: Vec<Box<dyn SyntaxHighlight>> = vec![
             Box::new(RustHighlight::new()),
@@ -72,11 +190,35 @@ impl Output {
             .find(|it| it.extensions().contains(&extension))
     }
 
-    /**
-     * Creates a new Output instance with the given configuration.
-     * Initializes the terminal size, editor contents, cursor controller, editor rows,
-     * status message, and other necessary components.
-     */
+    /// Creates a new Output instance with the given configuration.
+    /// 
+    /// This method initializes all the components needed for the editor to function:
+    /// - Terminal window size detection
+    /// - Editor content buffers
+    /// - Cursor controller with proper positioning
+    /// - Editor rows for text content management
+    /// - Status message system
+    /// - Search index for find functionality
+    /// - Selection state tracking
+    /// - Undo stack for text operations
+    /// 
+    /// # Arguments
+    /// 
+    /// * `config` - The editor configuration containing all settings and preferences
+    /// 
+    /// # Returns
+    /// 
+    /// Returns a new `Output` instance ready for text editing and screen rendering.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use ninja::transput::transput::Output;
+    /// use ninja::config::NinjaConfig;
+    /// 
+    /// let config = NinjaConfig::default();
+    /// let output = Output::new(config);
+    /// ```
     pub fn new(config: NinjaConfig) -> Self {
         let win_size = terminal::size()
             .map(|(x, y)| (x as usize, y as usize - 2))
@@ -103,17 +245,47 @@ impl Output {
         }
     }
 
-    /**
-     * Clears the terminal screen and moves the cursor to the top-left corner.
-     */
+    /// Clears the terminal screen and moves the cursor to the top-left corner.
+    /// 
+    /// This method provides a clean slate for rendering by clearing all
+    /// terminal content and positioning the cursor at the origin.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Ok(())` on success, or a `crossterm::Error` if the operation fails.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use ninja::transput::transput::Output;
+    /// 
+    /// Output::clear_screen()?;
+    /// ```
     pub fn clear_screen() -> crossterm::Result<()> {
         execute!(stdout(), terminal::Clear(ClearType::All))?;
         execute!(stdout(), cursor::MoveTo(0, 0))
     }
 
-    /**
-     * Callback function for key codes.
-     */
+    /// Callback function for handling search key events.
+    /// 
+    /// This function is called by the search prompt to handle navigation
+    /// and search functionality. It supports:
+    /// - Arrow key navigation through search results
+    /// - Enter to confirm search
+    /// - Escape to cancel search
+    /// - Real-time search highlighting
+    /// 
+    /// # Arguments
+    /// 
+    /// * `output` - The editor output instance
+    /// * `keyword` - The current search term
+    /// * `key_code` - The key that was pressed
+    /// 
+    /// # Key Handling
+    /// 
+    /// - **Enter/Escape**: Exit search mode
+    /// - **Arrow Keys**: Navigate through search results
+    /// - **Other Keys**: Continue search with updated term
     fn find_callback(output: &mut Output, keyword: &str, key_code: KeyCode) {
         if let Some((index, highlight)) = output.search_index.previous_highlight.take() {
             output.editor_rows.get_editor_row_mut(index).highlight = highlight;
@@ -219,9 +391,28 @@ impl Output {
         }
     }
 
-    /**
-     * Finds a keyword in the editor content.
-     */
+    /// Initiates a search for text in the editor content.
+    /// 
+    /// This method displays a search prompt at the bottom of the screen
+    /// and allows the user to enter a search term. The search supports:
+    /// - Real-time highlighting of matches
+    /// - Navigation between matches with arrow keys
+    /// - Case-sensitive and case-insensitive search (configurable)
+    /// - Wrap-around search (configurable)
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Ok(())` on successful completion, or an `io::Error` if
+    /// the search operation fails.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use ninja::transput::transput::Output;
+    /// 
+    /// // Start a search
+    /// output.find()?;
+    /// ```
     pub fn find(&mut self) -> io::Result<()> {
         let cursor_controller = self.cursor_controller;
         if prompt!(
@@ -774,6 +965,38 @@ impl Output {
 }
 
 impl Reader {
+    /// Reads a single key event from the terminal.
+    /// 
+    /// This method polls for keyboard input with a timeout and returns
+    /// the next key event when available. It handles all types of key
+    /// events including regular characters, function keys, and modifier
+    /// combinations.
+    /// 
+    /// # Returns
+    /// 
+    /// Returns `Ok(KeyEvent)` when a key is pressed, or a `crossterm::Error`
+    /// if the input operation fails.
+    /// 
+    /// # Polling Behavior
+    /// 
+    /// The method polls for input every 500ms to avoid blocking the
+    /// editor indefinitely. This allows for responsive UI updates
+    /// while waiting for user input.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use ninja::transput::transput::Reader;
+    /// 
+    /// let reader = Reader;
+    /// let key_event = reader.read_key()?;
+    /// 
+    /// match key_event.code {
+    ///     KeyCode::Char('q') => println!("User pressed 'q'"),
+    ///     KeyCode::Ctrl('s') => println!("User pressed Ctrl+S"),
+    ///     _ => {}
+    /// }
+    /// ```
     pub fn read_key(&self) -> crossterm::Result<KeyEvent> {
         loop {
             if event::poll(Duration::from_millis(500))? {
